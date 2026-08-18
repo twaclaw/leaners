@@ -1,7 +1,7 @@
 # Local helpers. None of this is required to deploy: GitHub Pages serves this
 # repository directly, so `git push` is the deploy. See design.md section 9.
 
-PY := uv run leaners
+PY := uv run --no-project tools/leaners/cli.py
 PORT ?= 8000
 
 .DEFAULT_GOAL := help
