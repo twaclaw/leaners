@@ -19,4 +19,4 @@ The renderer is currently `marked`, loaded from `vendor/`. It will be replaced
 by a Rust renderer compiled to WebAssembly, whose `Ast -> HTML` half is verified
 in Lean via Aeneas. Nothing about this page has to change when that happens.
 
-See `design.md` in the repository root for the full plan.
+
