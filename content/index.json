@@ -1,0 +1,12 @@
+{
+  "docs": [
+    {
+      "path": "notes/adding-a-page.md",
+      "title": "Adding a page"
+    },
+    {
+      "path": "notes/hello.md",
+      "title": "Hello"
+    }
+  ]
+}
