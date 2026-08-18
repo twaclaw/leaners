@@ -25,12 +25,8 @@ check: ## Validate the manifest and internal links
 	@$(PY) check
 
 .PHONY: publish
-publish: check ## Validate, then commit and push to main (this is the deploy)
-	@git add -A
-	@git diff --cached --quiet && { echo "nothing to publish"; exit 0; } || true
-	@git commit -m "$(or $(M),Update content)"
-	@git push origin main
-	@echo "pushed. GitHub Pages usually reflects it within a minute."
+publish: ## Publish to GitHub Pages
+	@$(PY) publish -m "$(or $(M),Update content)"
 
 .PHONY: setup
 setup: ## One-time: point this repo at a GitHub remote

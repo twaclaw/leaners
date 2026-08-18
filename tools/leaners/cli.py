@@ -6,6 +6,7 @@ import http.server
 import json
 import re
 import socketserver
+import subprocess
 import sys
 from pathlib import Path
 
@@ -100,6 +101,53 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def git(*args, capture=True) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args], cwd=ROOT, text=True,
+        capture_output=capture, check=False,
+    )
+
+
+def cmd_publish(args) -> int:
+    """Validate, commit and push. GitHub Pages serves main directly, so this
+    is the whole deploy: there is nothing to build."""
+    if git("rev-parse", "--git-dir").returncode != 0:
+        print("not a git repository", file=sys.stderr)
+        return 1
+    if not git("remote", "get-url", "origin").stdout.strip():
+        print("no 'origin' remote. Run: make setup REPO=owner/name", file=sys.stderr)
+        return 1
+
+    if cmd_index(argparse.Namespace(check=True)) != 0:
+        return 1
+    if cmd_check(args) != 0:
+        return 1
+
+    # Stage tracked changes plus anything new under content/. Deliberately not
+    # `add -A`, so stray files in the repo root are never swept into a commit.
+    git("add", "-u")
+    git("add", str(CONTENT.relative_to(ROOT)))
+
+    staged = git("diff", "--cached", "--name-only").stdout.split()
+    if not staged:
+        print("nothing to publish")
+        return 0
+
+    print("publishing:")
+    for f in staged:
+        print(f"  {f}")
+
+    if git("commit", "-m", args.message).returncode != 0:
+        print("commit failed", file=sys.stderr)
+        return 1
+    if git("push", "origin", "HEAD", capture=False).returncode != 0:
+        print("push failed", file=sys.stderr)
+        return 1
+
+    print("\npushed. GitHub Pages usually reflects it within a minute.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="leaners", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -110,6 +158,10 @@ def main() -> int:
 
     p_check = sub.add_parser("check", help="validate manifest and internal links")
     p_check.set_defaults(func=cmd_check)
+
+    p_publish = sub.add_parser("publish", help="validate, commit and push to GitHub Pages")
+    p_publish.add_argument("-m", "--message", default="Update content", help="commit message")
+    p_publish.set_defaults(func=cmd_publish)
 
     p_serve = sub.add_parser("serve", help="preview at http://127.0.0.1:8000")
     p_serve.add_argument("--port", type=int, default=8000)
