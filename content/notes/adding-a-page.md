@@ -1,21 +1,23 @@
 # Adding a page
 
-Entirely from the GitHub web interface, with no tooling installed.
+## From this site
 
-## 1. Create the file
+Add a token (top right), then use **New page**. Give it a path and a title,
+write the Markdown, and press Create. The page and its entry in
+`content/index.json` are committed for you.
 
-Go to `content/notes/` in the repository and choose **Add file**, then
-**Create new file**. Name it something like `my-note.md` and write Markdown.
+## From GitHub
 
-## 2. List it
+Without a token, **New on GitHub** opens GitHub's file creator. Two steps:
 
-Edit `content/index.json` and add an entry:
+1. Create `content/notes/my-note.md` and write Markdown.
+2. Edit `content/index.json` and add an entry:
 
 ```json
 { "path": "notes/my-note.md", "title": "My note" }
 ```
 
-That is the only bookkeeping. The nav and the home page both read this file.
+The nav and the home page both read that file.
 
 ## Why a manifest at all?
 
