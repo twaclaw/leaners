@@ -1,12 +1,28 @@
 {
   "docs": [
     {
-      "path": "notes/adding-a-page.md",
-      "title": "Adding a page"
+      "path": "notes/intro.md",
+      "title": "Introduction"
     },
     {
-      "path": "notes/hello.md",
-      "title": "Hello"
+      "path": "notes/verification/software-verification.md",
+      "title": "Software verification with Lean"
+    },
+    {
+      "path": "notes/lean/lean.md",
+      "title": "Lean"
+    },
+    {
+      "path": "notes/lean/experiences.md",
+      "title": "Experiences and tips"
+    },
+    {
+      "path": "notes/about-this-site.md",
+      "title": "About this site"
+    },
+    {
+      "path": "notes/adding-a-page.md",
+      "title": "Adding a new page"
     }
   ]
 }
