@@ -31,6 +31,7 @@ on:
       - "build-manifest.json"
       - "Makefile"
       - "tools/**"
+      - "content/**"
       - ".github/workflows/verify.yml"
   pull_request:
     paths:
@@ -40,6 +41,7 @@ on:
       - "build-manifest.json"
       - "Makefile"
       - "tools/**"
+      - "content/**"
       - ".github/workflows/verify.yml"
 
 permissions:
