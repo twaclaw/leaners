@@ -5,10 +5,6 @@
       "title": "Introduction"
     },
     {
-      "path": "notes/verification/software-verification.md",
-      "title": "Software verification with Lean"
-    },
-    {
       "path": "notes/lean/lean.md",
       "title": "Lean"
     },
@@ -17,16 +13,16 @@
       "title": "Experiences and tips"
     },
     {
+      "path": "notes/verification/software-verification.md",
+      "title": "Software verification with Lean"
+    },
+    {
       "path": "notes/about-this-site.md",
       "title": "About this site"
     },
     {
       "path": "notes/adding-a-page.md",
       "title": "Adding a new page"
-    },
-    {
-      "path": "notes/hello.md",
-      "title": "Hello"
     },
     {
       "path": "notes/verification/counterexamples.md",
