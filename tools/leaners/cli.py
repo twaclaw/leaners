@@ -129,18 +129,33 @@ def cmd_publish(args) -> int:
     git("add", str(CONTENT.relative_to(ROOT)))
 
     staged = git("diff", "--cached", "--name-only").stdout.split()
-    if not staged:
-        print("nothing to publish")
+    if staged:
+        print("committing:")
+        for f in staged:
+            print(f"  {f}")
+        if git("commit", "-m", args.message).returncode != 0:
+            print("commit failed", file=sys.stderr)
+            return 1
+
+    # Committing and publishing are different questions: there may be nothing
+    # to commit but still unpushed commits from earlier.
+    branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    git("fetch", "--quiet", "origin", branch)
+    counts = git("rev-list", "--left-right", "--count", f"origin/{branch}...HEAD")
+    behind, ahead = (0, 1) if counts.returncode != 0 else map(int, counts.stdout.split())
+
+    if behind and not ahead:
+        print(f"behind origin/{branch} by {behind}. Run: git pull", file=sys.stderr)
+        return 1
+    if behind and ahead:
+        print(f"diverged from origin/{branch} ({behind} behind, {ahead} ahead).", file=sys.stderr)
+        return 1
+    if not ahead:
+        print("nothing to publish; already up to date")
         return 0
 
-    print("publishing:")
-    for f in staged:
-        print(f"  {f}")
-
-    if git("commit", "-m", args.message).returncode != 0:
-        print("commit failed", file=sys.stderr)
-        return 1
-    if git("push", "origin", "HEAD", capture=False).returncode != 0:
+    print(f"pushing {ahead} commit(s) to origin/{branch}")
+    if git("push", "origin", branch, capture=False).returncode != 0:
         print("push failed", file=sys.stderr)
         return 1
 
@@ -149,6 +164,10 @@ def cmd_publish(args) -> int:
 
 
 def main() -> int:
+    # Keep our output interleaved correctly with git's, which writes straight
+    # to the terminal while Python's stdout is block-buffered under `make`.
+    sys.stdout.reconfigure(line_buffering=True)
+
     parser = argparse.ArgumentParser(prog="leaners", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
