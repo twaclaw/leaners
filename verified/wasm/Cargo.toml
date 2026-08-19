@@ -1,0 +1,20 @@
+[package]
+name = "leaners-wasm"
+version = "0.1.0"
+edition = "2024"
+
+# A cdylib because this is the wasm artifact. It is a separate crate precisely so
+# that leaners-render can stay an rlib and remain extractable.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+leaners-render = { version = "0.1.0", path = ".." }
+
+# Size matters: this ships to every reader.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
