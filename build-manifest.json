@@ -1,0 +1,24 @@
+{
+  "files": {
+    "pkg/render.wasm": "4cbe4748b2bf8b66e57352371ba02c91edfa313149fa98b5ef3c2fb2b7e641cd",
+    "proofs/Extracted/LeanersRender.lean": "dca4dcf9e4547a5d34f2bf6a90e567dba87f51b03ad845f88c3bebce3d7582a6",
+    "verified/Cargo.toml": "fe04bd1297f1d600eb77155e010b46332c72013bead8ed837873a9ff9f1744ab",
+    "verified/src/adapt.rs": "059b3816e9b09e515cff7e9934c4703f36b412563773bc1fa98db3e3c38929b8",
+    "verified/src/ast.rs": "270ecb06172ad89c9bb26ee260f6dc641ab2641d1414d29825cd5449f1f5d6b7",
+    "verified/src/bin/render.rs": "7750fcacdc50f6c8ee3abecca5390046f7c21d6c61c5c1410182cb9d1e753cbb",
+    "verified/src/bin/vectors.rs": "a1223b25e3293a5b2363ef72aadc48cb156ffbe319aa9370f62151a6ef56bb6a",
+    "verified/src/escape.rs": "71d24327936fe3a2ff63345f29b6547d6ba9b1103e74b0c0530d904e0c11f657",
+    "verified/src/highlight.rs": "84bedd66b252f0b3d7cb5b61cdabb45731d77628c256385d1c66d9971f08317b",
+    "verified/src/lib.rs": "ba734309d0fa0afba6edbdc17a9e06fc51c9fa8b5629e99d2122545ac5b408c4",
+    "verified/src/render.rs": "b9189714f744837dc0faab0c01b2b9906520ea9f1185a37b5efdd04407f31bfe",
+    "verified/src/slug.rs": "1f0e78b1c2a4d8d3fac1e847295e441ddf6184267f8c3141af6cda1c0ae9f96f",
+    "verified/wasm/Cargo.toml": "f34be74f93e17c6b6e9906608d29f144dfd80a579f6ee2b7cb4107ada48a9c1d",
+    "verified/wasm/src/lib.rs": "08c6b5d400077cad6d1340ddb75489e7b77c8aa4844dcd0b70dd16403754c58a"
+  },
+  "toolchains": {
+    "aeneas_rev": "c10cc997a2cc885f5b2c9ef3929cc05632cb106c",
+    "charon": "0.1.232",
+    "lean": "leanprover/lean4:v4.31.0",
+    "rustc": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  }
+}

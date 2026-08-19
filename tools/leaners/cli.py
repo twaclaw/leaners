@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import functools
+import os
 import http.server
 import json
 import re
 import socketserver
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTENT = ROOT / "content"
@@ -16,7 +17,10 @@ MANIFEST = CONTENT / "index.json"
 
 
 def docs_on_disk() -> list[Path]:
-    return sorted(p for p in CONTENT.rglob("*.md"))
+    # Sort on the relative POSIX path rather than on Path objects. Path ordering
+    # compares parts, so notes/lean/tactics/simp.md sorts before notes/lean.md
+    # and a section's children end up listed above the page that heads them.
+    return sorted(CONTENT.rglob("*.md"), key=lambda p: p.relative_to(CONTENT).as_posix())
 
 
 def title_of(path: Path) -> str:
@@ -27,25 +31,72 @@ def title_of(path: Path) -> str:
     return path.stem.replace("-", " ").replace("_", " ").capitalize()
 
 
+def normalise(entries: list) -> list[dict]:
+    """Accept a bare "notes/hello.md" string as well as a full entry object.
+
+    Adding a page through GitHub's web editor means hand-editing this manifest,
+    where a one-line string has no key order to get wrong and no title to
+    mistype. `index` rewrites either spelling into the canonical form.
+    """
+    docs = []
+    for entry in entries:
+        if isinstance(entry, str):
+            docs.append({"path": entry})
+        elif isinstance(entry, dict) and entry.get("path"):
+            docs.append(entry)
+    return docs
+
+
 def read_manifest() -> list[dict]:
     if not MANIFEST.exists():
         return []
-    return json.loads(MANIFEST.read_text(encoding="utf-8")).get("docs", [])
+    try:
+        data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        # Regenerating the manifest is how a malformed one gets repaired, so
+        # this must survive the very file it is about to rewrite rather than
+        # dying on it.
+        print(f"warning: {MANIFEST.relative_to(ROOT)} is not valid JSON ({exc})", file=sys.stderr)
+        return []
+    return normalise(data.get("docs", []))
 
 
 def cmd_index(args) -> int:
-    """Regenerate content/index.json from the tree, preserving manual titles."""
+    """Regenerate content/index.json from the tree, preserving order and titles."""
     existing = {d["path"]: d for d in read_manifest()}
-    docs = []
-    for p in docs_on_disk():
-        rel = p.relative_to(CONTENT).as_posix()
-        # A hand-edited title in the manifest wins over the file's heading.
-        docs.append({"path": rel, "title": existing.get(rel, {}).get("title") or title_of(p)})
+    on_disk = {p.relative_to(CONTENT).as_posix(): p for p in docs_on_disk()}
+
+    # Manifest order is the sidebar's order, and it is meant to be rearranged by
+    # hand: move the lines and `index` leaves them moved. Files not listed yet
+    # are appended in path order, so adding a page never silently reshuffles the
+    # ones already there. `--sort` throws the hand-ordering away again.
+    if args.sort:
+        order = list(on_disk)
+    else:
+        listed = [rel for rel in existing if rel in on_disk]
+        order = listed + [rel for rel in on_disk if rel not in existing]
+
+    # A hand-edited title in the manifest wins over the file's heading.
+    docs = [
+        {"path": rel, "title": existing.get(rel, {}).get("title") or title_of(on_disk[rel])}
+        for rel in order
+    ]
 
     payload = json.dumps({"docs": docs}, indent=2, ensure_ascii=False) + "\n"
     if args.check:
-        current = MANIFEST.read_text(encoding="utf-8") if MANIFEST.exists() else ""
-        if current != payload:
+        # Compare meaning, not bytes. Key order, indentation and entry order are
+        # cosmetic and `index` fixes them, so they must not fail a check that
+        # gates anything. A path appearing or vanishing is the real drift.
+        listed = {d["path"]: d.get("title") for d in read_manifest()}
+        rebuilt = {d["path"]: d["title"] for d in docs}
+        if listed != rebuilt:
+            for path in sorted(set(rebuilt) - set(listed)):
+                print(f"  missing from index.json: {path}", file=sys.stderr)
+            for path in sorted(set(listed) - set(rebuilt)):
+                print(f"  listed but not on disk: {path}", file=sys.stderr)
+            for path in sorted(set(listed) & set(rebuilt)):
+                if listed[path] != rebuilt[path]:
+                    print(f"  {path}: title not canonical yet", file=sys.stderr)
             print("content/index.json is out of date. Run: make index", file=sys.stderr)
             return 1
         print(f"content/index.json is up to date ({len(docs)} docs)")
@@ -54,6 +105,20 @@ def cmd_index(args) -> int:
     MANIFEST.write_text(payload, encoding="utf-8")
     print(f"wrote {MANIFEST.relative_to(ROOT)} ({len(docs)} docs)")
     return 0
+
+
+def strip_code(text: str) -> str:
+    """Blanks out fenced blocks and inline spans so documentation examples are
+    not mistaken for real links. Line count is preserved so any future
+    line-numbered diagnostics stay accurate."""
+    out, fenced = [], False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            out.append("")
+            continue
+        out.append("" if fenced else re.sub(r"`[^`]*`", "", line))
+    return "\n".join(out)
 
 
 def cmd_check(args) -> int:
@@ -68,13 +133,26 @@ def cmd_check(args) -> int:
     for unlisted in sorted(on_disk - listed):
         problems.append(f"{unlisted} exists but is not in index.json")
 
-    # In-site links look like #/notes/hello
     for p in docs_on_disk():
-        for m in re.finditer(r"\]\(#/([^)\s]+)\)", p.read_text(encoding="utf-8")):
+        # Links inside code fences and inline code spans are examples, not links.
+        text = strip_code(p.read_text(encoding="utf-8"))
+        here = PurePosixPath(p.relative_to(CONTENT).as_posix()).parent
+
+        # In-site links look like #/notes/hello
+        for m in re.finditer(r"\]\(#/([^)\s]+)\)", text):
             target = m.group(1)
             target = target if target.endswith(".md") else f"{target}.md"
             if target not in on_disk:
                 problems.append(f"{p.relative_to(CONTENT)}: dead link to #/{m.group(1)}")
+
+        # Document-relative links such as ./sibling.md or ../other/page.md. These
+        # are the form that also works when the file is read on GitHub, and
+        # app.js rewrites them into routes. Resolve them the same way it does.
+        for m in re.finditer(r"\]\((?!#|/|[a-z][a-z0-9+.\-]*:)([^)\s]+\.md)\)", text, re.I):
+            rel = m.group(1)
+            target = os.path.normpath((here / rel).as_posix()).replace("\\", "/")
+            if target not in on_disk:
+                problems.append(f"{p.relative_to(CONTENT)}: dead link to {rel}")
 
     for problem in problems:
         print(problem, file=sys.stderr)
@@ -85,9 +163,117 @@ def cmd_check(args) -> int:
     return 0
 
 
+MANIFEST_FILES = [
+    "pkg/render.wasm",
+    "verified/Cargo.toml",
+    "verified/wasm/Cargo.toml",
+]
+MANIFEST_GLOBS = ["verified/src/**/*.rs", "verified/wasm/src/*.rs", "proofs/Extracted/*.lean"]
+
+
+def sha256(path: Path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    h.update(path.read_bytes())
+    return h.hexdigest()
+
+
+def tool_version(cmd: list[str]) -> str | None:
+    """Version string, or None when the tool is not installed here."""
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip().splitlines()[0] if r.returncode == 0 and r.stdout.strip() else None
+
+
+def build_manifest() -> dict:
+    """Hashes binding pkg/ to the sources it was built from, plus the toolchain
+    versions that did it. See design.md section 9: without this, nothing
+    mechanically ties the shipped .wasm to the Rust the proofs are about."""
+    files: dict[str, str] = {}
+    for rel in MANIFEST_FILES:
+        p = ROOT / rel
+        if p.exists():
+            files[rel] = sha256(p)
+    for pattern in MANIFEST_GLOBS:
+        for p in sorted(ROOT.glob(pattern)):
+            files[p.relative_to(ROOT).as_posix()] = sha256(p)
+
+    aeneas_dir = Path(os.environ.get("AENEAS_DIR", "/opt/repos/toolchains/aeneas"))
+    aeneas_rev = None
+    if (aeneas_dir / ".git").exists():
+        r = subprocess.run(
+            ["git", "-C", str(aeneas_dir), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=False,
+        )
+        aeneas_rev = r.stdout.strip() or None
+
+    toolchain = ROOT / "proofs" / "lean-toolchain"
+    return {
+        "files": files,
+        "toolchains": {
+            "rustc": tool_version(["rustc", "--version"]),
+            "charon": tool_version([str(aeneas_dir / "charon" / "bin" / "charon"), "version"]),
+            "aeneas_rev": aeneas_rev,
+            "lean": toolchain.read_text(encoding="utf-8").strip() if toolchain.exists() else None,
+        },
+    }
+
+
+def cmd_manifest(args) -> int:
+    path = ROOT / "build-manifest.json"
+    current = build_manifest()
+    payload = json.dumps(current, indent=2, sort_keys=True) + "\n"
+
+    if args.check:
+        if not path.exists():
+            print("build-manifest.json is missing. Run: make manifest", file=sys.stderr)
+            return 1
+        recorded = json.loads(path.read_text(encoding="utf-8"))
+        problems = []
+        for rel, digest in recorded.get("files", {}).items():
+            actual = current["files"].get(rel)
+            if actual is None:
+                problems.append(f"{rel}: recorded but missing from the tree")
+            elif actual != digest:
+                problems.append(f"{rel}: hash differs from the manifest")
+        for rel in current["files"]:
+            if rel not in recorded.get("files", {}):
+                problems.append(f"{rel}: present but not recorded")
+        # A toolchain the manifest names but this machine lacks is reported, not
+        # failed: you can review the repo without charon installed.
+        for name, want in recorded.get("toolchains", {}).items():
+            got = current["toolchains"].get(name)
+            if got is not None and want is not None and got != want:
+                problems.append(f"toolchain {name}: manifest says {want!r}, found {got!r}")
+        for problem in problems:
+            print(problem, file=sys.stderr)
+        if problems:
+            print(f"\n{len(problems)} problem(s). The shipped artifact and the sources "
+                  "the proofs are about may have drifted.", file=sys.stderr)
+            return 1
+        print(f"build-manifest.json matches ({len(recorded.get('files', {}))} files)")
+        return 0
+
+    path.write_text(payload, encoding="utf-8")
+    print(f"wrote build-manifest.json ({len(current['files'])} files)")
+    return 0
+
+
 def cmd_serve(args) -> int:
     """Preview locally. Needed because ES modules will not load over file://."""
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(ROOT))
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        # SimpleHTTPRequestHandler sends no Cache-Control, so a browser applies
+        # heuristic freshness and can keep serving a stale render.wasm or app.js
+        # for hours after a rebuild, which looks exactly like a broken change.
+        # A preview server should never cache anything.
+        def end_headers(self):
+            self.send_header("Cache-Control", "no-store, must-revalidate")
+            super().end_headers()
+
+    handler = functools.partial(Handler, directory=str(ROOT))
 
     class Server(socketserver.TCPServer):
         allow_reuse_address = True
@@ -118,7 +304,9 @@ def cmd_publish(args) -> int:
         print("no 'origin' remote. Run: make setup REPO=owner/name", file=sys.stderr)
         return 1
 
-    if cmd_index(argparse.Namespace(check=True)) != 0:
+    # Regenerate rather than refuse: the manifest is derived from the tree, and
+    # `add` below picks it up so it travels in the same commit as the page.
+    if cmd_index(argparse.Namespace(check=False, sort=False)) != 0:
         return 1
     if cmd_check(args) != 0:
         return 1
@@ -173,7 +361,12 @@ def main() -> int:
 
     p_index = sub.add_parser("index", help="regenerate content/index.json")
     p_index.add_argument("--check", action="store_true", help="verify instead of writing")
+    p_index.add_argument("--sort", action="store_true", help="discard hand-ordering, sort by path")
     p_index.set_defaults(func=cmd_index)
+
+    p_man = sub.add_parser("manifest", help="record hashes binding pkg/ to its sources")
+    p_man.add_argument("--check", action="store_true", help="verify instead of writing")
+    p_man.set_defaults(func=cmd_manifest)
 
     p_check = sub.add_parser("check", help="validate manifest and internal links")
     p_check.set_defaults(func=cmd_check)

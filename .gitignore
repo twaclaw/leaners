@@ -4,5 +4,14 @@ __pycache__/
 *.egg-info/
 .DS_Store
 
+# Local backups, e.g. Cargo.toml.bak, lean-toolchain.bak-4.33
+*.bak
+*.bak-*
+
 # Rust build output
 verified/target/
+verified/wasm/target/
+
+# Lean build output and differential scratch
+proofs/.lake/
+.crosscheck/

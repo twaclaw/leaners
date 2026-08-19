@@ -36,12 +36,30 @@ check: ## Validate the manifest and internal links
 	@$(PY) index --check
 	@$(PY) check
 
+# Panic locations embed absolute source paths, so without these remaps the
+# binary ships the local username and checkout location, and the same sources
+# hash differently on every machine. Mapping the three roots that can appear
+# (the repo, the cargo registry, the toolchain's own sources) to fixed names is
+# what lets verify.sh and CI compare hashes at all.
+WASM_RUSTFLAGS = --remap-path-prefix=$(CURDIR)=/leaners \
+	--remap-path-prefix=$(or $(CARGO_HOME),$(HOME)/.cargo)=/cargo \
+	--remap-path-prefix=$(or $(RUSTUP_HOME),$(HOME)/.rustup)/toolchains/$(shell rustup show active-toolchain 2>/dev/null | cut -d' ' -f1)=/toolchain
+
 .PHONY: wasm
 wasm: ## Build the Rust renderer and copy it into pkg/
-	@cargo build --release --manifest-path verified/wasm/Cargo.toml --target wasm32-unknown-unknown
+	@RUSTFLAGS="$(WASM_RUSTFLAGS)" cargo build --release \
+		--manifest-path verified/wasm/Cargo.toml --target wasm32-unknown-unknown
 	@mkdir -p pkg
 	@cp verified/wasm/target/wasm32-unknown-unknown/release/leaners_wasm.wasm pkg/render.wasm
 	@ls -l pkg/render.wasm
+
+.PHONY: lint
+lint: ## Clippy and rustfmt over both crates, warnings are errors
+	@cargo fmt --manifest-path verified/Cargo.toml --check
+	@cargo fmt --manifest-path verified/wasm/Cargo.toml --check
+	@cargo clippy --manifest-path verified/Cargo.toml --all-targets -- -D warnings
+	@cargo clippy --manifest-path verified/wasm/Cargo.toml --all-targets -- -D warnings
+	@echo "clippy and rustfmt clean"
 
 .PHONY: extract
 extract: ## Re-extract the Lean model from the Rust via charon + aeneas
@@ -66,7 +84,11 @@ extract: ## Re-extract the Lean model from the Rust via charon + aeneas
 		--exclude 'crate::adapt::_' --exclude 'crate::markdown_to_html' \
 		--exclude 'crate::ast::_' --exclude 'crate::render::_' \
 		--dest-file target/llbc/leaners_render.llbc -- --lib
-	@"$(AENEAS)" -backend lean "$(LLBC)" -dest proofs/Extracted
+	@# -loops-to-rec extracts loops as recursive functions rather than through
+	@# the `loop` combinator: that is the shape every documented Aeneas proof
+	@# works against (unfold + step + termination_by), and the refinement
+	@# proofs in proofs/Leaners/Refine/ are written in exactly that idiom.
+	@"$(AENEAS)" -backend lean -loops-to-rec "$(LLBC)" -dest proofs/Extracted
 	@echo "extracted into proofs/Extracted. Review the diff: that is how you"
 	@echo "notice a Rust change that altered the model's meaning."
 
