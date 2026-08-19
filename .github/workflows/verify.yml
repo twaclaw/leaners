@@ -1,0 +1,64 @@
+# The "middle ground" of design.md section 9: one cheap job, no Lean, that
+# restores the mechanical link between the shipped binary and the committed
+# sources. Rebuilds pkg/render.wasm from scratch with the exact rustc recorded
+# in build-manifest.json and fails if any hash drifted. Without this the
+# binding is social: whoever ran `make wasm` asserts it matches.
+#
+# The proofs themselves stay a local concern (make proofs, make crosscheck):
+# a Mathlib-sized Lean build does not belong in a one-minute gate.
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "verified/**"
+      - "pkg/**"
+      - "proofs/Extracted/**"
+      - "build-manifest.json"
+      - "Makefile"
+      - ".github/workflows/verify.yml"
+  pull_request:
+    paths:
+      - "verified/**"
+      - "pkg/**"
+      - "proofs/Extracted/**"
+      - "build-manifest.json"
+      - "Makefile"
+      - ".github/workflows/verify.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The manifest is the single source of truth for the toolchain; pinning
+      # anything else here would let the two drift apart silently.
+      - name: Pin the rustc recorded in build-manifest.json
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('build-manifest.json'))['toolchains']['rustc'].split()[1])")
+          rustup toolchain install "$version" --profile minimal --component clippy --component rustfmt
+          rustup default "$version"
+          rustup target add wasm32-unknown-unknown
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: cargo test --manifest-path verified/Cargo.toml
+
+      - name: Rebuild pkg/render.wasm from clean
+        run: |
+          rm -rf verified/wasm/target
+          make wasm
+
+      # If only this step fails, either the committed binary was not built
+      # from the committed sources, or the build is not reproducible on this
+      # runner. Both are worth knowing; neither is ignorable.
+      - name: Compare everything against build-manifest.json
+        run: python3 tools/leaners/cli.py manifest --check

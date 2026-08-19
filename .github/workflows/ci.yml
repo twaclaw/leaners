@@ -1,0 +1,47 @@
+name: ci
+
+# Keeps content/index.json in step with the tree for pages added through
+# GitHub's web editor, where `make index` cannot be run. Locally the same
+# regeneration happens inside `make publish`, so the two cannot disagree.
+#
+# Pushing with the default GITHUB_TOKEN does not start another workflow run, so
+# the commit this job makes cannot retrigger it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "content/**"
+      - "tools/**"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # cli.py imports nothing outside the standard library, so the runner's
+      # own python3 is the whole toolchain: no setup step, no cache.
+      - name: Regenerate the manifest
+        run: python3 tools/leaners/cli.py index
+
+      - name: Commit the manifest if it changed
+        run: |
+          if git diff --quiet -- content/index.json; then
+            echo "manifest already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add content/index.json
+          git commit -m "Reindex content"
+          git push
+
+      # Last, so a dead link is reported without holding back the nav fix that
+      # the step above already published.
+      - name: Validate links
+        run: python3 tools/leaners/cli.py check
