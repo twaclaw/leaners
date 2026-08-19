@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Blocks script execution from anything but our own files, so raw HTML in a
+     Markdown document cannot run and cannot read the token out of
+     sessionStorage. connect-src limits where the page can talk to at all. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self';
+  style-src 'self';
+  img-src 'self' data: https:;
+  connect-src 'self' https://api.github.com;
+  base-uri 'none';
+  form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>leaners</title>
 <link rel="stylesheet" href="style.css">
