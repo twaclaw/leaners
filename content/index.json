@@ -23,6 +23,14 @@
     {
       "path": "notes/adding-a-page.md",
       "title": "Adding a new page"
+    },
+    {
+      "path": "notes/hello.md",
+      "title": "Hello"
+    },
+    {
+      "path": "notes/verification/counterexamples.md",
+      "title": "Breaking the proofs: counterexamples"
     }
   ]
 }

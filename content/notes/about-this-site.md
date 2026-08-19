@@ -32,6 +32,10 @@ markdown bytes --[ pulldown-cmark, UNVERIFIED ]--> Ast --[ verified ]--> HTML by
                                              trust boundary
 ```
 
+The same split, drawn as the compiler it is:
+
+![The renderer as a compiler: unverified frontend, typed IR, verified backend](figures/renderer-pipeline.svg)
+
 Verifying a Markdown parser would be a more extensive project, since `CommonMark` is
 several hundred special cases. So the parser is off the shelf and unverified,
 and only the `Ast -> HTML` half is verified.

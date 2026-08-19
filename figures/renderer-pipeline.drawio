@@ -1,0 +1,130 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="leaners-renderer" name="Renderer pipeline">
+    <mxGraphModel dx="1090" dy="770" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1320" pageHeight="840" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="s_fe" value="FRONTEND" style="text;html=0;align=center;fontSize=12;fontStyle=1;fontColor=#8a5a20;" vertex="1" parent="1">
+          <mxGeometry x="210" y="24" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="s_fe2" value="lexer and parser · unverified" style="text;html=0;align=center;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="210" y="44" width="380" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="s_ir" value="IR" style="text;html=0;align=center;fontSize=12;fontStyle=1;fontColor=#444444;" vertex="1" parent="1">
+          <mxGeometry x="640" y="24" width="190" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="s_ir2" value="typed intermediate representation" style="text;html=0;align=center;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="640" y="44" width="190" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="s_be" value="BACKEND" style="text;html=0;align=center;fontSize=12;fontStyle=1;fontColor=#3c6e3c;" vertex="1" parent="1">
+          <mxGeometry x="870" y="24" width="220" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="s_be2" value="code generator · verified side" style="text;html=0;align=center;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="870" y="44" width="220" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="s_tg" value="TARGET" style="text;html=0;align=center;fontSize=12;fontStyle=1;fontColor=#444444;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="24" width="170" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="s_tg2" value="target language: HTML" style="text;html=0;align=center;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="44" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="tb" value="trust boundary: the Ast" style="shape=line;direction=north;strokeColor=#C07A2A;dashed=1;dashPattern=5 4;html=0;fontSize=10;verticalAlign=bottom;fontColor=#C07A2A;align=center;labelBackgroundColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="605" y="70" width="20" height="278" as="geometry" />
+        </mxCell>
+        <mxCell id="n_in" value="Markdown bytes&#xa;&#xa;content/*.md, fetched&#xa;by app.js at runtime.&#xa;UTF-8, untrusted:&#xa;anyone with a commit&#xa;chooses these bytes" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=11;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="20" y="90" width="150" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n_pd" value="pulldown-cmark&#xa;&#xa;lexes and parses&#xa;CommonMark, hundreds&#xa;of special cases.&#xa;Off the shelf,&#xa;UNVERIFIED" style="rounded=1;arcSize=6;html=0;fillColor=#fff1e0;strokeColor=#dfa76b;fontSize=11;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="210" y="90" width="170" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ad" value="adapt.rs&#xa;&#xa;folds the event stream&#xa;into the Ast. Raw HTML&#xa;events are dropped&#xa;here, by design.&#xa;UNVERIFIED" style="rounded=1;arcSize=6;html=0;fillColor=#fff1e0;strokeColor=#dfa76b;fontSize=11;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="420" y="90" width="170" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n_ast" value="Ast  (ast.rs)&#xa;&#xa;Block: Paragraph, Heading,&#xa;Code, Quote, List, Table, Rule&#xa;Inline: Text, Code, Math,&#xa;Emph, Strong, Link, Image,&#xa;SoftBreak, HardBreak&#xa;&#xa;No raw-HTML variant:&#xa;no value of this type&#xa;can carry markup" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=11;fontColor=#111111;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="640" y="90" width="190" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="n_re" value="render.rs&#xa;walks the tree, emits tags&#xa;only from a fixed vocabulary" style="rounded=1;arcSize=6;html=0;fillColor=#e6f4e6;strokeColor=#7cb17c;fontSize=11;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="870" y="90" width="220" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="n_esc" value="escape.rs · text bytes → entities" style="rounded=1;arcSize=6;html=0;fillColor=#e6f4e6;strokeColor=#7cb17c;fontSize=10;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="870" y="166" width="220" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="n_url" value="is_safe_url · scheme allowlist,&#xa;anything else becomes an empty href" style="rounded=1;arcSize=6;html=0;fillColor=#e6f4e6;strokeColor=#7cb17c;fontSize=10;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="870" y="206" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_sl" value="slug.rs · headings → deduplicated&#xa;anchor ids over [a-z0-9-]" style="rounded=1;arcSize=6;html=0;fillColor=#e6f4e6;strokeColor=#7cb17c;fontSize=10;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="870" y="252" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="n_hl" value="highlight.rs · code → five span&#xa;classes; lexers may be wrong,&#xa;the tag set cannot grow" style="rounded=1;arcSize=6;html=0;fillColor=#e6f4e6;strokeColor=#7cb17c;fontSize=10;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="870" y="298" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="n_out" value="HTML byte string&#xa;&#xa;handed to innerHTML&#xa;by app.js; the verified&#xa;boundary ends here,&#xa;the DOM is the&#xa;browser's problem" style="rounded=1;arcSize=6;html=0;fillColor=#f4f4f4;strokeColor=#999999;fontSize=11;fontColor=#111111;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="90" width="170" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n_voc" value="Everything the backend can emit, the complete tag vocabulary:&#xa;p · h1..h6 id=&quot;&quot; · pre · code class=&quot;language-&quot; · blockquote · ul · ol · li · table · thead · tbody · tr · th · td&#xa;hr · em · strong · a href=&quot;&quot; · img src=&quot;&quot; alt=&quot;&quot; · br · span class=&quot;math | tok-kw | tok-str | tok-com | tok-num | tok-var&quot;&#xa;Every byte that came from the document reaches the output through escape_byte, never verbatim." style="rounded=1;arcSize=6;html=0;fillColor=#f5fbf5;strokeColor=#b9d7b9;fontSize=10;fontColor=#111111;align=left;spacingLeft=10;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="640" y="380" width="660" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="n_note" value="The classic verified-compiler split: the messy frontend is off the shelf and&#xa;unverified, only the backend is proved. That is not a compromise, because the&#xa;safety theorem quantifies over every Ast: whatever the parser produces, the&#xa;renderer cannot emit input-derived markup. The parser can be buggy, hostile,&#xa;or replaced, and the property survives, since it was never about the parser." style="rounded=1;arcSize=6;html=0;fillColor=#faf8ff;strokeColor=#b7abd4;fontSize=10;fontColor=#111111;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="20" y="380" width="560" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="p_ex" value="Three inputs through the pipeline" style="rounded=1;arcSize=4;html=0;fillColor=#ffffff;strokeColor=#d4d4d4;verticalAlign=top;align=left;spacingLeft=8;spacingTop=2;fontSize=12;fontStyle=1;fontColor=#444444;" vertex="1" parent="1">
+          <mxGeometry x="20" y="500" width="1280" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="exh1" value="markdown in" style="text;html=0;align=left;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="40" y="530" width="330" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="exh2" value="Ast (the IR)" style="text;html=0;align=left;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="430" y="530" width="430" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="exh3" value="HTML out" style="text;html=0;align=left;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="920" y="530" width="360" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="ex1a" value="a &lt; b &amp; *c*" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="552" width="330" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex1b" value="Paragraph [Text &quot;a &lt; b &amp; &quot;, Emph [Text &quot;c&quot;]]" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="430" y="552" width="430" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex1c" value="&lt;p&gt;a &amp;lt; b &amp;amp; &lt;em&gt;c&lt;/em&gt;&lt;/p&gt;" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="920" y="552" width="360" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex2a" value="[x](javascript:alert(1))" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="606" width="330" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex2b" value="Paragraph [Link &quot;javascript:alert(1)&quot; [Text &quot;x&quot;]]" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="430" y="606" width="430" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex2c" value="&lt;p&gt;&lt;a href=&quot;&quot;&gt;x&lt;/a&gt;&lt;/p&gt;   unsafe scheme, href emptied" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="920" y="606" width="360" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex3a" value="&lt;script&gt;alert(1)&lt;/script&gt;" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="660" width="330" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex3b" value="raw HTML events, dropped by adapt.rs: no Ast node exists for them" style="rounded=1;arcSize=6;html=0;fillColor=#fff1e0;strokeColor=#dfa76b;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="430" y="660" width="430" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex3c" value="(nothing)" style="rounded=1;arcSize=6;html=0;fillColor=#ffffff;strokeColor=#999999;fontSize=10;fontColor=#111111;fontFamily=Courier New;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="920" y="660" width="360" height="38" as="geometry" />
+        </mxCell>
+        <mxCell id="ex_n" value="The middle column is what the theorems quantify over: whatever lands there, the right column can carry markup only from the fixed vocabulary." style="text;html=0;align=left;fontSize=10;fontStyle=2;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="40" y="708" width="1240" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="bytes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeColor=#666666;fontSize=10;fontColor=#666666;endArrow=blockThin;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="n_in" target="n_pd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="Events" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeColor=#666666;fontSize=10;fontColor=#666666;endArrow=blockThin;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="n_pd" target="n_ad">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeColor=#666666;fontSize=10;fontColor=#666666;endArrow=blockThin;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="n_ad" target="n_ast">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="fold over&#xa;the tree" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeColor=#666666;fontSize=10;fontColor=#666666;endArrow=blockThin;endFill=1;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="n_ast" target="n_re">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="HTML bytes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;strokeColor=#666666;fontSize=10;fontColor=#666666;endArrow=blockThin;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="n_re" target="n_out">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
