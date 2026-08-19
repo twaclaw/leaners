@@ -26,6 +26,13 @@ nav { flex: 0 0 13rem; font-size: .875rem; }
 nav ul { list-style: none; margin: 0; padding: 0; }
 nav li { margin: .25rem 0; }
 nav a.active { font-weight: 600; color: #111; }
+/* One indent step per folder, with a hairline to make the nesting readable
+   without needing to collapse anything. */
+nav ul ul { margin: .15rem 0 .35rem .35rem; padding-left: .6rem; border-left: 1px solid #e6e6e6; }
+nav .section, main ul.tree .section { color: #666; }
+nav li.warn { color: #b00020; }
+main ul.tree, main ul.tree ul { list-style: none; padding-left: 0; }
+main ul.tree ul { margin-left: .9rem; }
 main { flex: 1 1 auto; min-width: 0; max-width: 48rem; }
 
 h1 { font-size: 1.5rem; }
@@ -34,6 +41,24 @@ code, pre, textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, mon
 code { background: #f4f4f4; padding: .05rem .25rem; font-size: .9em; }
 pre { background: #f4f4f4; padding: .75rem; overflow-x: auto; }
 pre code { background: none; padding: 0; }
+/* Token classes emitted by verified/src/highlight.rs. The set is closed: if a
+   class appears here that the module cannot emit, it is dead. */
+.tok-kw  { color: #cf222e; }
+.tok-str { color: #0a3069; }
+.tok-com { color: #6e7781; font-style: italic; }
+.tok-num { color: #0550ae; }
+.tok-var { color: #953800; }
+
+/* Inline and display math. Nothing in the pipeline typesets TeX, so this styles
+   the source as mathematical text; write notation in Unicode, not as macros. */
+.math { font-family: ui-serif, Georgia, "Times New Roman", serif; font-style: italic; }
+.math.math-display {
+  display: block;
+  margin: 1.1rem 0;
+  text-align: center;
+  font-size: 1.05em;
+  font-style: normal;
+}
 blockquote { border-left: 3px solid #ddd; margin-left: 0; padding-left: .75rem; color: #555; }
 table { border-collapse: collapse; display: block; overflow-x: auto; }
 th, td { border: 1px solid #ddd; padding: .3rem .5rem; text-align: left; }
