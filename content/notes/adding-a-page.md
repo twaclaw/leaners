@@ -1,14 +1,7 @@
 # Adding a page
 
-## From this site
-
-Add a token (top right), then use **New page**. Give it a path and a title,
-write the Markdown, and press Create. The page and its entry in
-`content/index.json` are committed for you.
-
-## From GitHub
-
-Without a token, **New on GitHub** opens GitHub's file creator. Two steps:
+Entirely from the GitHub web interface, with no tooling installed. **New page**
+in the top right opens GitHub's file creator. Two steps:
 
 1. Create `content/notes/my-note.md` and write Markdown.
 2. Edit `content/index.json` and add an entry:

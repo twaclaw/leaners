@@ -38,27 +38,8 @@ blockquote { border-left: 3px solid #ddd; margin-left: 0; padding-left: .75rem; 
 table { border-collapse: collapse; display: block; overflow-x: auto; }
 th, td { border: 1px solid #ddd; padding: .3rem .5rem; text-align: left; }
 img { max-width: 100%; }
-.hint { color: #666; font-size: .875rem; }
-.err { color: #b00; }
-.ok { color: #070; }
-
-/* editor */
-.fields { margin: .5rem 0; font-size: .875rem; }
-.fields label { margin-right: 1.5rem; }
-.panes { display: flex; gap: 1rem; align-items: stretch; }
-.panes > * { flex: 1 1 50%; min-width: 0; height: 70vh; }
-textarea { width: 100%; padding: .5rem; border: 1px solid #ccc; font-size: .875rem; resize: vertical; }
-.preview { border: 1px solid #eee; padding: 0 .75rem; overflow-y: auto; }
-.preview > :first-child { margin-top: .5rem; }
-.actions { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
-.actions input { flex: 0 1 24rem; padding: .3rem; border: 1px solid #ccc; }
-button { padding: .3rem .8rem; border: 1px solid #999; background: #f4f4f4; cursor: pointer; }
-button:hover { background: #e8e8e8; }
-input { font: inherit; }
 
 @media (max-width: 44rem) {
   .layout { flex-direction: column; }
   nav { flex: none; }
-  .panes { flex-direction: column; }
-  .panes > * { height: auto; min-height: 16rem; }
 }
