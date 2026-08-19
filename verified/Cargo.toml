@@ -1,0 +1,20 @@
+[package]
+name = "leaners-render"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+pulldown-cmark = { version = "0.13.4", default-features = false }
+
+# Clippy's idioms and the extraction style pull in opposite directions: `&Vec<u8>`
+# is the shape aeneas models, ranges and `clamp` are iterator and trait calls, and
+# `len() > 0` extracts more predictably than `is_empty()`. Configured here rather
+# than with attributes scattered through the sources.
+[lints.clippy]
+ptr_arg = "allow"
+manual_range_contains = "allow"
+manual_clamp = "allow"
+len_zero = "allow"

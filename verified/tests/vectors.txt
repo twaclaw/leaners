@@ -1,0 +1,37 @@
+hello
+a < b
+a > b
+&amp;
+"quoted"
+'single'
+<script>alert(1)</script>
+&<>"'
+tags <b>bold</b>
+Ünïcödé αβγ ∀
+https://example.com
+HTTPS://EXAMPLE.COM
+http://x
+mailto:a@b.c
+notes/x.md
+#/notes/lean
+javascript:alert(1)
+JaVaScRiPt:alert(1)
+data:text/html;base64,PHNjcmlwdD4=
+relative?q=1
+weird:thing/after
+/absolute/path
+
+JAVASCRIPT:alert(1)
+vbscript:msgbox(1)
+file:///etc/passwd
+javascript&colon;alert(1)
+https://example.com/a?b=c#d
+//protocol-relative.example
+:starts-with-colon
+mailto:
+http:
+Ünïcode Slug ÅÄÖ
+--multiple---dashes--
+A  B
+a-b
+&#39;&quot;
