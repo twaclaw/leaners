@@ -170,6 +170,13 @@ MANIFEST_FILES = [
 ]
 MANIFEST_GLOBS = ["verified/src/**/*.rs", "verified/wasm/src/*.rs", "proofs/Extracted/*.lean"]
 
+# Compiled output, as opposed to sources. Its hash pins the artifact to the
+# sources only for a rebuild on the machine that recorded it: rustc does not
+# promise byte-identical wasm across hosts, and a toolchain carrying different
+# components (rust-src, say) embeds different paths. `--sources-only` drops it
+# so CI can check the sources exactly and bind the binary a different way.
+MANIFEST_ARTIFACTS = {"pkg/render.wasm"}
+
 
 def sha256(path: Path) -> str:
     import hashlib
@@ -232,15 +239,21 @@ def cmd_manifest(args) -> int:
             print("build-manifest.json is missing. Run: make manifest", file=sys.stderr)
             return 1
         recorded = json.loads(path.read_text(encoding="utf-8"))
+        skip = MANIFEST_ARTIFACTS if args.sources_only else set()
         problems = []
         for rel, digest in recorded.get("files", {}).items():
+            if rel in skip:
+                continue
             actual = current["files"].get(rel)
             if actual is None:
                 problems.append(f"{rel}: recorded but missing from the tree")
             elif actual != digest:
-                problems.append(f"{rel}: hash differs from the manifest")
+                problems.append(
+                    f"{rel}: hash differs from the manifest "
+                    f"(recorded {digest[:12]}, found {actual[:12]})"
+                )
         for rel in current["files"]:
-            if rel not in recorded.get("files", {}):
+            if rel not in recorded.get("files", {}) and rel not in skip:
                 problems.append(f"{rel}: present but not recorded")
         # A toolchain the manifest names but this machine lacks is reported, not
         # failed: you can review the repo without charon installed.
@@ -254,7 +267,9 @@ def cmd_manifest(args) -> int:
             print(f"\n{len(problems)} problem(s). The shipped artifact and the sources "
                   "the proofs are about may have drifted.", file=sys.stderr)
             return 1
-        print(f"build-manifest.json matches ({len(recorded.get('files', {}))} files)")
+        checked = len(recorded.get("files", {})) - len(skip & set(recorded.get("files", {})))
+        what = "source files" if args.sources_only else "files"
+        print(f"build-manifest.json matches ({checked} {what})")
         return 0
 
     path.write_text(payload, encoding="utf-8")
@@ -366,6 +381,8 @@ def main() -> int:
 
     p_man = sub.add_parser("manifest", help="record hashes binding pkg/ to its sources")
     p_man.add_argument("--check", action="store_true", help="verify instead of writing")
+    p_man.add_argument("--sources-only", action="store_true",
+                       help="skip compiled artifacts, whose bytes are host dependent")
     p_man.set_defaults(func=cmd_manifest)
 
     p_check = sub.add_parser("check", help="validate manifest and internal links")

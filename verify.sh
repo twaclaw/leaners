@@ -7,9 +7,12 @@
 # could commit a .wasm built from different code and nothing would notice. See
 # design.md section 9.
 #
-# The wasm build is bit-reproducible from a clean target directory, so a hash
-# difference here means the sources and the shipped binary really have drifted,
-# not that the build is noisy.
+# The wasm build is bit-reproducible from a clean target directory *on the
+# machine that recorded the manifest*, so a hash difference here means the
+# sources and the shipped binary really have drifted, not that the build is
+# noisy. Across hosts it is not: rustc embeds paths that depend on which
+# toolchain components are installed, which is why CI checks the source hashes
+# exactly and binds the binary by behaviour instead. See .github/workflows.
 set -euo pipefail
 cd "$(dirname "$0")"
 

@@ -190,8 +190,11 @@ stale `proofs/Extracted/` so the old proofs still compile. Locally everything
 looks green. `./verify.sh` closes this hole: it re-runs `make extract` and
 then compares the fresh extraction against the manifest, so the recorded
 hashes can only all match when wasm, Rust, and the extraction the proofs are
-about came from the same sources. The CI workflow repeats the wasm half of
-that on every push.
+about came from the same sources. CI cannot repeat the hash comparison, because
+rustc does not promise byte-identical wasm across hosts, so it checks the source
+hashes exactly and then renders a corpus through both the committed binary and a
+rebuild from those sources, requiring identical HTML. Byte equality is a
+same-machine check; behavioural equality is the portable one.
 
 ## What no proof here catches
 

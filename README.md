@@ -52,4 +52,6 @@ A server is required for preview: ES modules do not load over `file://`.
 
 `make verify` rebuilds the WASM and the extracted model from source and checks
 both against `build-manifest.json`, then runs the proofs and the Rust/Lean
-crosscheck. CI repeats the WASM half of that on every push.
+crosscheck. On every push CI checks the source hashes exactly and requires the
+committed WASM to render the corpus identically to a rebuild from those
+sources.

@@ -1,11 +1,23 @@
-# The "middle ground" of design.md section 9: one cheap job, no Lean, that
-# restores the mechanical link between the shipped binary and the committed
-# sources. Rebuilds pkg/render.wasm from scratch with the exact rustc recorded
-# in build-manifest.json and fails if any hash drifted. Without this the
-# binding is social: whoever ran `make wasm` asserts it matches.
+# The "middle ground" of design.md section 9: one cheap job, no Lean, that ties
+# the shipped binary to the committed sources. Two checks, because they can be
+# bound with different strengths:
 #
-# The proofs themselves stay a local concern (make proofs, make crosscheck):
-# a Mathlib-sized Lean build does not belong in a one-minute gate.
+#   1. Source hashes must match build-manifest.json exactly. That is what
+#      catches a Rust edit that never made it into the extraction the proofs
+#      are about.
+#   2. The committed pkg/render.wasm must compute the same function as a wasm
+#      rebuilt here from those sources, checked by rendering a corpus through
+#      both and diffing the HTML.
+#
+# Check 2 is behavioural rather than byte-for-byte on purpose. rustc does not
+# promise byte-identical wasm across hosts: a toolchain carrying different
+# components embeds different paths, so a macOS-built artifact and a Linux
+# rebuild differ in bytes while computing the same function. Byte equality is
+# still checked, but where it is meaningful: verify.sh rebuilds on the machine
+# that recorded the manifest.
+#
+# The proofs stay local. A Mathlib-sized Lean build does not belong in a
+# one-minute gate.
 
 name: verify
 
@@ -18,6 +30,7 @@ on:
       - "proofs/Extracted/**"
       - "build-manifest.json"
       - "Makefile"
+      - "tools/**"
       - ".github/workflows/verify.yml"
   pull_request:
     paths:
@@ -26,6 +39,7 @@ on:
       - "proofs/Extracted/**"
       - "build-manifest.json"
       - "Makefile"
+      - "tools/**"
       - ".github/workflows/verify.yml"
 
 permissions:
@@ -52,13 +66,30 @@ jobs:
       - name: Test
         run: cargo test --manifest-path verified/Cargo.toml
 
-      - name: Rebuild pkg/render.wasm from clean
+      - name: Rebuild the wasm from the committed sources
         run: |
+          cp pkg/render.wasm "$RUNNER_TEMP/committed.wasm"
           rm -rf verified/wasm/target
           make wasm
+          cp pkg/render.wasm "$RUNNER_TEMP/rebuilt.wasm"
 
-      # If only this step fails, either the committed binary was not built
-      # from the committed sources, or the build is not reproducible on this
-      # runner. Both are worth knowing; neither is ignorable.
-      - name: Compare everything against build-manifest.json
-        run: python3 tools/leaners/cli.py manifest --check
+      # If this fails, a source file changed without `make manifest` being run,
+      # which usually means the extraction the proofs are about is stale too.
+      - name: Source hashes must match the manifest
+        run: python3 tools/leaners/cli.py manifest --check --sources-only
+
+      # And this is what binds the committed binary to those sources: whatever
+      # the byte-level differences between hosts, the two must render the whole
+      # corpus, hostile vectors included, to identical HTML.
+      - name: The committed wasm must match a rebuild, behaviourally
+        run: |
+          mapfile -t docs < <(find content -name '*.md' | sort)
+          docs+=(verified/tests/vectors.txt)
+          node tools/wasm-render.mjs "$RUNNER_TEMP/committed.wasm" "${docs[@]}" > "$RUNNER_TEMP/committed.html"
+          node tools/wasm-render.mjs "$RUNNER_TEMP/rebuilt.wasm" "${docs[@]}" > "$RUNNER_TEMP/rebuilt.html"
+          if diff -u "$RUNNER_TEMP/committed.html" "$RUNNER_TEMP/rebuilt.html"; then
+            echo "committed wasm matches the rebuild on ${#docs[@]} documents"
+          else
+            echo "::error::the committed pkg/render.wasm does not behave like a rebuild from the committed sources"
+            exit 1
+          fi
