@@ -13,10 +13,11 @@ repository *is* the page.
 The change is live. That is the whole point of the design: because Markdown is
 data rather than build input, committing is publishing.
 
-## What comes next
+## What renders this
 
-The renderer is currently `marked`, loaded from `vendor/`. It will be replaced
-by a Rust renderer compiled to WebAssembly, whose `Ast -> HTML` half is verified
-in Lean via Aeneas. Nothing about this page has to change when that happens.
+A Rust renderer compiled to WebAssembly, whose escaping, URL and slug functions
+are extracted to Lean by Aeneas and proved there. It replaced the JavaScript
+renderer this page originally described, and nothing about the page had to
+change: the seam was async from the start.
 
 
