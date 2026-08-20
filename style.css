@@ -64,6 +64,17 @@ table { border-collapse: collapse; display: block; overflow-x: auto; }
 th, td { border: 1px solid #ddd; padding: .3rem .5rem; text-align: left; }
 img { max-width: 100%; }
 
+/* Figures are small in the flow of the text, so clicking one opens it over the
+   page. Everything here is class driven: the CSP has no `unsafe-inline`, so the
+   shell may not set a style attribute. */
+#content img { cursor: zoom-in; }
+#lightbox { display: none; position: fixed; inset: 0; z-index: 10; padding: 2rem;
+  background: rgba(0, 0, 0, .8); cursor: zoom-out; }
+#lightbox.open { display: flex; align-items: center; justify-content: center; }
+/* White plate behind the figure: the SVGs are drawn for a light page and have
+   no background of their own. */
+#lightbox img { max-width: 100%; max-height: 100%; background: #fff; padding: 1rem; }
+
 @media (max-width: 44rem) {
   .layout { flex-direction: column; }
   nav { flex: none; }

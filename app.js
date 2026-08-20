@@ -288,5 +288,37 @@ async function route() {
   }
 }
 
+// Clicking a figure opens it over the page. This is shell behaviour and touches
+// no markup: the overlay is built with DOM APIs and takes only the `src` and
+// `alt` of an image the renderer already emitted, so the guarantee about what
+// reaches the document is unaffected. The listener sits on #content, which
+// survives every route change, rather than on images that do not.
+const lightbox = document.createElement("div");
+lightbox.id = "lightbox";
+lightbox.setAttribute("role", "dialog");
+lightbox.setAttribute("aria-modal", "true");
+lightbox.setAttribute("aria-label", "Enlarged figure");
+const lightboxImg = document.createElement("img");
+lightbox.append(lightboxImg);
+document.body.append(lightbox);
+
+function closeLightbox() {
+  lightbox.classList.remove("open");
+  lightboxImg.removeAttribute("src");
+  lightboxImg.removeAttribute("alt");
+}
+
+el.content.addEventListener("click", (event) => {
+  const img = event.target.closest("img");
+  if (!img) return;
+  lightboxImg.src = img.currentSrc || img.src;
+  lightboxImg.alt = img.alt;
+  lightbox.classList.add("open");
+});
+lightbox.addEventListener("click", closeLightbox);
+addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeLightbox();
+});
+
 addEventListener("hashchange", route);
 route();
