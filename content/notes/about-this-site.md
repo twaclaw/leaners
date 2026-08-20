@@ -38,7 +38,7 @@ The same split, drawn as the compiler it is:
 
 Verifying a Markdown parser would be a more extensive project, since `CommonMark` is
 several hundred special cases. So the parser is off the shelf and unverified,
-and only the `Ast -> HTML` half is verified.
+**and only the `Ast -> HTML` half is verified.**
 
 This compromise is actually stronger than verifying the parser,
 because the theorem quantifies over every `Ast`:
@@ -76,6 +76,25 @@ so the Lean side sees pure functions over values, with no heap and no separation
 logic. Rust removes the aliasing reasoning and Lean does the mathematics. The
 two fit together for that reason, not because they share any foundation: Rust
 has no dependent types at all.
+
+### How a run proceeds
+
+1. `charon` compiles the austere modules to LLBC and `aeneas` writes the Lean
+   model into `proofs/Extracted/`. The parser frontend is excluded, and so are
+   `ast.rs` and `render.rs` for now: Lean's kernel rejects the nested inductive
+   that `Inline` becomes, so steps 5 and 6 below still run against a
+   hand-written model.
+2. `lake` builds that generated model together with the hand-written files
+   beside it: `Leaners/Spec.lean`, the pure specs; `Leaners/Refine.lean`, one
+   theorem per extracted function proving it computes its spec; and
+   `Leaners/Proofs/`, the properties below, stated about the specs and carried
+   to the extracted model by the refinement.
+3. The Rust binary and the Lean model are run over the same vector file and
+   their output diffed, so the two are seen to agree on concrete inputs and not
+   only in the proofs.
+4. `build-manifest.json` hashes the Rust sources, the extracted Lean and the
+   shipped `.wasm` together. That is what catches a Rust edit which never
+   reached the extraction the proofs are about.
 
 The properties, in increasing order of difficulty:
 
