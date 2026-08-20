@@ -4,10 +4,24 @@
 PY := uv run --no-project tools/leaners/cli.py
 PORT ?= 8000
 
-# Extraction toolchain. Override AENEAS_DIR if your checkout lives elsewhere.
-# Both are built from source: aeneas is OCaml, charon is a rustc driver on a
-# pinned nightly, and the pair must match aeneas/charon-pin.
-AENEAS_DIR ?= /opt/repos/toolchains/aeneas
+# Extraction toolchain. The rev comes from build-manifest.json rather than from
+# a fixed path or an exported variable, so a machine that carries several aeneas
+# versions cannot quietly extract this repo with the wrong one: the checkout a
+# project uses is the one that project recorded. Override AENEAS_DIR if your
+# checkouts live somewhere other than the rev-keyed layout below.
+#
+#   ~/repos/toolchains/aeneas/.src        the clone
+#   ~/repos/toolchains/aeneas/<rev>/      a worktree per pinned rev, built there
+#
+# Both tools are built from source: aeneas is OCaml, charon is a rustc driver on
+# a pinned nightly, and the pair must match the worktree's charon-pin.
+AENEAS_REV := $(shell python3 -c "import json; print(json.load(open('build-manifest.json'))['toolchains']['aeneas_rev'])" 2>/dev/null)
+AENEAS_DIR ?= $(HOME)/repos/toolchains/aeneas/$(AENEAS_REV)
+# An AENEAS_DIR exported into the shell silently wins over the default above,
+# which is the one way this can point somewhere unrelated to the recorded rev.
+# Say so in the failure rather than leaving it to be noticed.
+AENEAS_DIR_ORIGIN := $(origin AENEAS_DIR)
+
 CHARON := $(AENEAS_DIR)/charon/bin/charon
 AENEAS := $(AENEAS_DIR)/bin/aeneas
 LLBC := verified/target/llbc/leaners_render.llbc
@@ -63,12 +77,27 @@ lint: ## Clippy and rustfmt over both crates, warnings are errors
 
 .PHONY: extract
 extract: ## Re-extract the Lean model from the Rust via charon + aeneas
+	@test -n "$(AENEAS_REV)" || { \
+		echo "no toolchains.aeneas_rev in build-manifest.json"; exit 1; }
 	@test -x "$(CHARON)" || { \
 		echo "charon not found at $(CHARON)"; \
+		[ "$(AENEAS_DIR_ORIGIN)" = environment ] && \
+			echo "AENEAS_DIR comes from your environment and overrides the rev-keyed default; unset it"; \
 		echo "build it with: cd $(AENEAS_DIR) && make setup-charon"; exit 1; }
 	@test -x "$(AENEAS)" || { \
-		echo "aeneas not found at $(AENEAS)"; \
+		echo "aeneas $(AENEAS_REV) not found at $(AENEAS)"; \
+		[ "$(AENEAS_DIR_ORIGIN)" = environment ] && \
+			echo "AENEAS_DIR comes from your environment and overrides the rev-keyed default; unset it"; \
 		echo "build it with: cd $(AENEAS_DIR) && make"; exit 1; }
+	@# The path already names the rev, but AENEAS_DIR can be overridden and a
+	@# worktree can be moved off its commit, so check the checkout itself.
+	@# A non-git AENEAS_DIR (a nix store path, say) is left alone: the hash of
+	@# the extracted model in build-manifest.json is the backstop either way.
+	@head=$$(git -C "$(AENEAS_DIR)" rev-parse HEAD 2>/dev/null); \
+	if [ -n "$$head" ] && [ "$$head" != "$(AENEAS_REV)" ]; then \
+		echo "$(AENEAS_DIR) is at $$head"; \
+		echo "build-manifest.json wants $(AENEAS_REV)"; exit 1; \
+	fi
 	@mkdir -p verified/target/llbc proofs/Extracted
 	@# `-- --lib` is load-bearing: without it charon also walks the bin targets and
 	@# the last one wins, so you get a model of tests/vectors.rs instead of the
@@ -94,6 +123,10 @@ extract: ## Re-extract the Lean model from the Rust via charon + aeneas
 
 .PHONY: proofs
 proofs: ## Build the Lean model and its proofs
+	@# Mathlib is pinned to a released rev, so upstream CI has already published
+	@# its oleans: fetch them instead of spending hours recompiling 8000 modules.
+	@# Failure is tolerated so an offline machine still works, just slowly.
+	@cd proofs && lake exe cache get || echo "no mathlib cache available, building from source"
 	@cd proofs && lake build
 
 .PHONY: crosscheck
@@ -117,27 +150,25 @@ figures: ## Re-export figures/*.svg from their .drawio sources
 			--output "$${f%.drawio}.svg" "$$f" || exit 1; \
 	done
 
+# cli.py resolves the extraction toolchain the same way this file does, but it
+# reads AENEAS_DIR from its environment, so the two agree only if the value is
+# passed through. Without this the recorded aeneas_rev and charon version come
+# out null, quietly dropping the pins the extracted model depends on.
+manifest manifest-check: export AENEAS_DIR := $(AENEAS_DIR)
+
 .PHONY: manifest
 manifest: ## Record hashes binding pkg/render.wasm to the sources it came from
 	@$(PY) manifest
 
 .PHONY: manifest-check
 manifest-check: ## Verify pkg/ still matches the sources recorded in build-manifest.json
-	@$(PY) manifest --check
+	@$(PY) manifest --check $(MANIFEST_CHECK_FLAGS)
 
 .PHONY: verify
 verify: ## Full integrity check: rebuild, re-extract, compare hashes, run proofs
-	@./verify.sh
+	@# VERIFY_ARGS=--local-wasm on a machine that did not record the manifest.
+	@./verify.sh $(VERIFY_ARGS)
 
 .PHONY: publish
 publish: ## Publish to GitHub Pages
 	@$(PY) publish -m "$(or $(M),Update content)"
-
-.PHONY: setup
-setup: ## One-time: point this repo at a GitHub remote
-	@test -n "$(REPO)" || { echo "usage: make setup REPO=owner/name"; exit 1; }
-	@git remote add origin "git@github.com:$(REPO).git" 2>/dev/null \
-		|| git remote set-url origin "git@github.com:$(REPO).git"
-	@git branch -M main
-	@echo "remote set to $(REPO)."
-	@echo "Next: push, then enable Pages (Settings > Pages > Deploy from a branch > main / root)."

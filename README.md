@@ -50,8 +50,43 @@ A server is required for preview: ES modules do not load over `file://`.
 | `proofs/` | the Lean models, proofs, and the aeneas-extracted model |
 | `tools/` | local Python helpers, not needed to deploy |
 
-`make verify` rebuilds the WASM and the extracted model from source and checks
-both against `build-manifest.json`, then runs the proofs and the Rust/Lean
-crosscheck. On every push CI checks the source hashes exactly and requires the
-committed WASM to render the corpus identically to a rebuild from those
-sources.
+## How verification proceeds
+
+`make verify` runs `./verify.sh`, which performs these steps in order. Each one
+names where its output lands, because the next one reads it from there.
+
+1. **Rebuild the artifact.** After `make lint`, `make wasm` compiles
+   `verified/` for `wasm32-unknown-unknown` and produces `pkg/render.wasm`, the
+   binary the site loads. The rebuild is compared against the artifact hash in
+   `build-manifest.json`, and the tree is left as it was found.
+2. **Extract.** `make extract` runs charon over `verified/` to produce
+   `verified/target/llbc/leaners_render.llbc`, then aeneas turns that LLBC into
+   `proofs/Extracted/LeanersRender.lean`. Only the austere backend is
+   extracted: `adapt.rs` is excluded as the unverified frontend, and `ast.rs`
+   and `render.rs` because Lean's kernel rejects the nested inductive that
+   `Inline` becomes.
+3. **Compare against the manifest.** `build-manifest.json` records hashes for
+   the Rust sources and the extracted Lean, plus the toolchain revisions that
+   produced them. This is the step that notices a Rust edit which never made it
+   into the extraction the proofs are about.
+4. **Prove.** `make proofs` builds `proofs/` with lake, compiling the generated
+   model together with the hand-written files beside it: `Leaners/Spec.lean`
+   (pure specs, the only hand-written definitions), `Leaners/Refine.lean` (one
+   theorem per extracted function, proving it computes its spec), and
+   `Leaners/Proofs/` (the safety theorems, stated about the specs and carried
+   to the extracted model by the refinement).
+5. **Crosscheck.** `make crosscheck` runs the Rust `vectors` binary and the
+   Lean `vectors` executable over `verified/tests/vectors.txt` and diffs their
+   output, so the model and the code are seen to agree on concrete inputs and
+   not only in the proofs.
+
+The run ends with a summary naming each check. Watch the `extraction:` line: a
+missing charon or aeneas is not fatal, so a run can pass with the model left
+un-regenerated, and the summary says so when that happens.
+
+Byte equality for the WASM only holds on the machine that recorded the
+manifest. Anywhere else use `./verify.sh --local-wasm`, which keeps the
+committed binary canonical and substitutes the comparison CI makes: the rebuild
+must render the corpus identically. CI runs the cheap half on every push,
+checking the source hashes exactly and binding the committed WASM by behaviour.
+The Lean build stays local, since Mathlib does not belong in a one-minute gate.
