@@ -125,6 +125,21 @@ else
 fi
 
 echo
+echo "==> which lines of verified/src the extracted model covers"
+# Aeneas stamps each definition with the source span it came from; the report
+# maps those spans back onto the Rust and says, line by line, what is in the
+# model, what the Makefile excludes on purpose, and what fell through. It reads
+# the model on disk, so it is meaningful in both branches above: freshly
+# regenerated, or the committed one when extraction was skipped.
+if coverage_table=$(make -s extract-report 2>&1); then
+  echo "$coverage_table"
+  coverage_result=$(printf '%s\n' "$coverage_table" | tail -n 1 | sed 's/^coverage: //')
+else
+  echo "$coverage_table" >&2
+  coverage_result="report unavailable"
+fi
+
+echo
 echo "==> comparing the sources and the extracted model against build-manifest.json"
 make manifest-check MANIFEST_CHECK_FLAGS=--sources-only
 
@@ -141,6 +156,7 @@ echo "==> verify.sh passed"
 echo "  wasm:       $wasm_result"
 echo "  sources:    match build-manifest.json"
 echo "  extraction: $extract_result"
+echo "  coverage:   $coverage_result"
 echo "  proofs:     lake build clean"
 echo "  crosscheck: the Lean model agrees with the Rust on the vector corpus"
 case "$extract_result" in

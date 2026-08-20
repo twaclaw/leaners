@@ -1,20 +1,22 @@
 //! Austere module: the backend of the compiler, and the half meant to be
-//! verified.
+//! verified. Extracted to Lean via charon/aeneas by `make extract`, together
+//! with the `Ast` it walks.
 //!
-//! Ladder steps 5 and 6 (design.md section 5):
+//! Ladder steps 5 and 6:
 //!
 //!   5. every tag opened is closed, correctly nested
 //!   6. every `<` in the output was emitted here, never derived from input
 //!
 //! Step 6 is what makes the unverified parser harmless: it quantifies over *all*
 //! `Ast` values, so however wrong the parser is, it cannot produce an `Ast` whose
-//! rendering carries markup through.
+//! rendering carries markup through. The flat stream shape changes nothing
+//! there: marker events emit fixed literals, and every input-derived byte still
+//! leaves through `escape`.
 //!
-//! **Not extracted yet**, unlike `escape`, `slug` and `highlight`. `Ast` recurses
-//! through `Vec` and Lean's kernel rejects the resulting nested inductive, so
-//! `make extract` skips this module and steps 5 and 6 wait on reshaping `Ast`.
-//! The austere style is kept regardless, because retrofitting it later is
-//! miserable.
+//! Step 5 is the property the flattening reprices. On the old tree it held for
+//! every value; on a stream it holds for balanced streams, so its statement
+//! gains a well-formedness hypothesis, discharged by construction for the
+//! streams `adapt` emits.
 
 use crate::ast::{Block, Inline};
 use crate::escape::{escape, is_safe_url, push_all};
@@ -23,13 +25,9 @@ use crate::slug::{assign, clone_bytes, slugify};
 
 pub fn render(blocks: &Vec<Block>, out: &mut Vec<u8>) {
     let mut taken: Vec<Vec<u8>> = Vec::new();
-    render_blocks(blocks, &mut taken, out);
-}
-
-fn render_blocks(blocks: &Vec<Block>, taken: &mut Vec<Vec<u8>>, out: &mut Vec<u8>) {
     let mut i: usize = 0;
     while i < blocks.len() {
-        render_block(&blocks[i], taken, out);
+        render_block(&blocks[i], &mut taken, out);
         i += 1;
     }
 }
@@ -81,12 +79,13 @@ fn render_block(block: &Block, taken: &mut Vec<Vec<u8>>, out: &mut Vec<u8>) {
             highlight(lang_of(lang), text, out);
             push_all(out, b"</code></pre>\n");
         }
-        Block::Quote(inner) => {
+        Block::QuoteOpen => {
             push_all(out, b"<blockquote>\n");
-            render_blocks(inner, taken, out);
+        }
+        Block::QuoteClose => {
             push_all(out, b"</blockquote>\n");
         }
-        Block::List(ordered, items) => {
+        Block::ListOpen(ordered) => {
             // Each branch pushes its own literal. `push_all(out, if c {a} else {b})`
             // reads better but extracts to an `ite` at slice type that aeneas
             // cannot elaborate, so the duplication is deliberate.
@@ -95,18 +94,19 @@ fn render_block(block: &Block, taken: &mut Vec<Vec<u8>>, out: &mut Vec<u8>) {
             } else {
                 push_all(out, b"<ul>\n");
             }
-            let mut i: usize = 0;
-            while i < items.len() {
-                push_all(out, b"<li>");
-                render_blocks(&items[i], taken, out);
-                push_all(out, b"</li>\n");
-                i += 1;
-            }
+        }
+        Block::ListClose(ordered) => {
             if *ordered {
                 push_all(out, b"</ol>\n");
             } else {
                 push_all(out, b"</ul>\n");
             }
+        }
+        Block::ItemOpen => {
+            push_all(out, b"<li>");
+        }
+        Block::ItemClose => {
+            push_all(out, b"</li>\n");
         }
         Block::Table(rows) => {
             push_all(out, b"<table>\n");
@@ -176,24 +176,27 @@ fn render_inline(inline: &Inline, out: &mut Vec<u8>) {
             escape(t, out);
             push_all(out, b"</span>");
         }
-        Inline::Emph(body) => {
+        Inline::EmphOpen => {
             push_all(out, b"<em>");
-            render_inlines(body, out);
+        }
+        Inline::EmphClose => {
             push_all(out, b"</em>");
         }
-        Inline::Strong(body) => {
+        Inline::StrongOpen => {
             push_all(out, b"<strong>");
-            render_inlines(body, out);
+        }
+        Inline::StrongClose => {
             push_all(out, b"</strong>");
         }
-        Inline::Link(url, body) => {
+        Inline::LinkOpen(url) => {
             push_all(out, b"<a href=\"");
             // A rejected scheme yields an empty href rather than being emitted.
             if is_safe_url(url) {
                 escape(url, out);
             }
             push_all(out, b"\">");
-            render_inlines(body, out);
+        }
+        Inline::LinkClose => {
             push_all(out, b"</a>");
         }
         Inline::Image(url, alt) => {
@@ -210,29 +213,30 @@ fn render_inline(inline: &Inline, out: &mut Vec<u8>) {
     }
 }
 
-/// Plain text of an inline sequence, used to derive heading anchors.
+/// Plain text of an inline run, used to derive heading anchors. Marker events
+/// contribute nothing; on the old tree this recursed into their children, and
+/// on the stream those children are simply the events that follow.
 fn inline_text(inlines: &Vec<Inline>) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
-    collect_text(inlines, &mut out);
-    out
-}
-
-fn collect_text(inlines: &Vec<Inline>, out: &mut Vec<u8>) {
     let mut i: usize = 0;
     while i < inlines.len() {
         match &inlines[i] {
-            Inline::Text(t) => push_bytes(out, t),
-            Inline::Code(t) => push_bytes(out, t),
-            Inline::Math(_, t) => push_bytes(out, t),
-            Inline::Emph(body) => collect_text(body, out),
-            Inline::Strong(body) => collect_text(body, out),
-            Inline::Link(_, body) => collect_text(body, out),
-            Inline::Image(_, alt) => push_bytes(out, alt),
+            Inline::Text(t) => push_bytes(&mut out, t),
+            Inline::Code(t) => push_bytes(&mut out, t),
+            Inline::Math(_, t) => push_bytes(&mut out, t),
+            Inline::EmphOpen => {}
+            Inline::EmphClose => {}
+            Inline::StrongOpen => {}
+            Inline::StrongClose => {}
+            Inline::LinkOpen(_) => {}
+            Inline::LinkClose => {}
+            Inline::Image(_, alt) => push_bytes(&mut out, alt),
             Inline::SoftBreak => out.push(b' '),
             Inline::HardBreak => out.push(b' '),
         }
         i += 1;
     }
+    out
 }
 
 fn push_bytes(out: &mut Vec<u8>, v: &Vec<u8>) {

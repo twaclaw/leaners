@@ -80,10 +80,11 @@ has no dependent types at all.
 ### How a run proceeds
 
 1. `charon` compiles the austere modules to LLBC and `aeneas` writes the Lean
-   model into `proofs/Extracted/`. The parser frontend is excluded, and so are
-   `ast.rs` and `render.rs` for now: Lean's kernel rejects the nested inductive
-   that `Inline` becomes, so steps 5 and 6 below still run against a
-   hand-written model.
+   model into `proofs/Extracted/`. Only the parser frontend is excluded.
+   `ast.rs` and `render.rs` were excluded too while the `Ast` was a tree
+   recursing through `Vec`, which Lean's kernel rejects as a nested inductive
+   once extracted; the `Ast` is a flat event stream now, so the renderer and
+   its input type extract with the rest.
 2. `lake` builds that generated model together with the hand-written files
    beside it: `Leaners/Spec.lean`, the pure specs; `Leaners/Refine.lean`, one
    theorem per extracted function proving it computes its spec; and

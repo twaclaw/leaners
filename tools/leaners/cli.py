@@ -277,6 +277,123 @@ def cmd_manifest(args) -> int:
     return 0
 
 
+def line_ranges(numbers: list[int]) -> list[str]:
+    """Compresses sorted line numbers into "12" / "14-19" range strings."""
+    out: list[str] = []
+    for n in numbers:
+        prev = out[-1] if out else None
+        if prev and int(prev.split("-")[-1]) == n - 1:
+            out[-1] = f"{prev.split('-')[0]}-{n}"
+        else:
+            out.append(str(n))
+    return out
+
+
+def item_span(lines: list[str], name: str) -> set[int]:
+    """1-based lines of `fn name` in a file, signature through closing brace.
+    Empty when the file does not define it."""
+    sig = re.compile(rf"^\s*(pub\s+)?fn\s+{re.escape(name)}\b")
+    for start, line in enumerate(lines):
+        if not sig.match(line):
+            continue
+        depth, opened = 0, False
+        for end in range(start, len(lines)):
+            depth += lines[end].count("{") - lines[end].count("}")
+            opened = opened or "{" in lines[end]
+            if opened and depth == 0:
+                return set(range(start + 1, end + 2))
+    return set()
+
+
+def cmd_extract_report(args) -> int:
+    """Line-by-line account of what `make extract` covered. Aeneas stamps every
+    definition it emits with the Rust source span it came from; mapping those
+    spans back onto verified/src says exactly which lines are in the model,
+    which were excluded on purpose, and which fell through."""
+    crate = ROOT / "verified"
+
+    span_re = re.compile(r"Source: '([^']+)', lines (\d+):\d+-(\d+):\d+")
+    covered: dict[str, set[int]] = {}
+    for lean in sorted((ROOT / "proofs" / "Extracted").glob("*.lean")):
+        for m in span_re.finditer(lean.read_text(encoding="utf-8")):
+            lines = covered.setdefault(m.group(1), set())
+            lines.update(range(int(m.group(2)), int(m.group(3)) + 1))
+    if not covered:
+        print("no extracted model under proofs/Extracted, nothing to report", file=sys.stderr)
+        return 1
+
+    # The same --exclude patterns `make extract` hands to charon, so the report
+    # cannot call something "missing" that the Makefile excludes on purpose.
+    module_excludes: list[tuple[str, str]] = []
+    item_excludes: list[tuple[str, str]] = []
+    for pattern in args.exclude:
+        parts = pattern.split("::")
+        if parts[0] != "crate" or len(parts) < 2:
+            print(f"unsupported exclude pattern: {pattern}", file=sys.stderr)
+            return 2
+        if parts[-1] == "_":
+            module_excludes.append(("/".join(parts[1:-1]), pattern))
+        else:
+            item_excludes.append((parts[-1], pattern))
+
+    rows: list[tuple[str, int, int, int, int, str]] = []
+    missing_where: list[str] = []
+    for path in sorted((crate / "src").rglob("*.rs")):
+        rel = path.relative_to(crate).as_posix()
+        lines = path.read_text(encoding="utf-8").splitlines()
+
+        note = ""
+        skipped_lines: set[int] = set()
+        if rel.startswith("src/bin/"):
+            skipped_lines = set(range(1, len(lines) + 1))
+            note = "bin target, extraction runs with --lib"
+        for mod_path, pattern in module_excludes:
+            if rel == f"src/{mod_path}.rs" or rel.startswith(f"src/{mod_path}/"):
+                skipped_lines = set(range(1, len(lines) + 1))
+                note = f"excluded: {pattern}"
+        if not skipped_lines:
+            for name, pattern in item_excludes:
+                span = item_span(lines, name)
+                if span:
+                    skipped_lines |= span
+                    note = f"excluded: {pattern}"
+
+        cov = covered.get(rel, set())
+        code = extracted = skipped = 0
+        missing: list[int] = []
+        for n, raw in enumerate(lines, start=1):
+            s = raw.strip()
+            # Blanks, comments and use/mod declarations carry no semantics the
+            # model could cover, so they belong in no bucket.
+            if not s or s.startswith("//") or s.startswith("#["):
+                continue
+            if re.match(r"(pub(\(\w+\))?\s+)?(use|mod)\s", s):
+                continue
+            code += 1
+            if n in cov:
+                extracted += 1
+            elif n in skipped_lines:
+                skipped += 1
+            else:
+                missing.append(n)
+        rows.append((rel, code, extracted, skipped, len(missing), note))
+        missing_where += [f"{rel}:{r}" for r in line_ranges(missing)]
+
+    width = max(len(r[0]) for r in rows)
+    print(f"{'file':<{width}}  code  extracted  skipped  missing")
+    for rel, code, ex, sk, mi, note in rows:
+        print(f"{rel:<{width}}  {code:>4}  {ex:>9}  {sk:>7}  {mi:>7}  {note}".rstrip())
+    total = [sum(r[i] for r in rows) for i in (1, 2, 3, 4)]
+    print(f"{'total':<{width}}  {total[0]:>4}  {total[1]:>9}  {total[2]:>7}  {total[3]:>7}")
+    if missing_where:
+        print("not extracted: " + ", ".join(missing_where))
+    print(
+        f"coverage: {total[1]} of {total[0]} code lines extracted, "
+        f"{total[2]} skipped as unverified by design, {total[3]} not extracted"
+    )
+    return 0
+
+
 def cmd_serve(args) -> int:
     """Preview locally. Needed because ES modules will not load over file://."""
     class Handler(http.server.SimpleHTTPRequestHandler):
@@ -387,6 +504,15 @@ def main() -> int:
 
     p_check = sub.add_parser("check", help="validate manifest and internal links")
     p_check.set_defaults(func=cmd_check)
+
+    p_report = sub.add_parser(
+        "extract-report", help="which lines of verified/src the extracted model covers"
+    )
+    p_report.add_argument(
+        "--exclude", action="append", default=[], metavar="PATTERN",
+        help="charon exclude pattern the extraction ran with, repeatable",
+    )
+    p_report.set_defaults(func=cmd_extract_report)
 
     p_publish = sub.add_parser("publish", help="validate, commit and push to GitHub Pages")
     p_publish.add_argument("-m", "--message", default="Update content", help="commit message")

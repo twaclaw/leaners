@@ -62,9 +62,13 @@ names where its output lands, because the next one reads it from there.
 2. **Extract.** `make extract` runs charon over `verified/` to produce
    `verified/target/llbc/leaners_render.llbc`, then aeneas turns that LLBC into
    `proofs/Extracted/LeanersRender.lean`. Only the austere backend is
-   extracted: `adapt.rs` is excluded as the unverified frontend, and `ast.rs`
-   and `render.rs` because Lean's kernel rejects the nested inductive that
-   `Inline` becomes.
+   extracted: `adapt.rs` is excluded as the unverified frontend. `ast.rs` and
+   `render.rs` used to be excluded as well, back when the `Ast` was a tree
+   recursing through `Vec` and Lean's kernel rejected the nested inductive that
+   `Inline` became; the `Ast` is a flat event stream now and both extract.
+   `verify.sh` prints a line-by-line coverage table (`make extract-report`)
+   saying which lines of `verified/src` the model covers, which are skipped on
+   purpose, and which are missing.
 3. **Compare against the manifest.** `build-manifest.json` records hashes for
    the Rust sources and the extracted Lean, plus the toolchain revisions that
    produced them. This is the step that notices a Rust edit which never made it

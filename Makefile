@@ -26,6 +26,12 @@ CHARON := $(AENEAS_DIR)/charon/bin/charon
 AENEAS := $(AENEAS_DIR)/bin/aeneas
 LLBC := verified/target/llbc/leaners_render.llbc
 
+# What `make extract` leaves out of the model: the unverified frontend, which
+# pulls in pulldown-cmark, and the String glue around it. One variable, shared
+# with `extract-report`, so the extraction and the coverage summary cannot
+# disagree about what was excluded on purpose.
+EXTRACT_EXCLUDES := crate::adapt::_ crate::markdown_to_html
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -101,17 +107,16 @@ extract: ## Re-extract the Lean model from the Rust via charon + aeneas
 	@mkdir -p verified/target/llbc proofs/Extracted
 	@# `-- --lib` is load-bearing: without it charon also walks the bin targets and
 	@# the last one wins, so you get a model of tests/vectors.rs instead of the
-	@# library. adapt.rs is excluded because it is the unverified frontend and
-	@# pulls in pulldown-cmark.
+	@# library. The excludes are the unverified frontend and its String glue; see
+	@# EXTRACT_EXCLUDES above.
 	@#
-	@# ast.rs and render.rs are excluded for a harder reason: Inline::Emph(Vec<Inline>)
-	@# recurses through Vec, and Lean's kernel rejects the resulting nested
-	@# inductive ("non valid occurrence of the datatypes being declared"). Ladder
-	@# steps 5 and 6 stay on the hand-written model until the Ast is reshaped to
-	@# recurse through Box, or flattened into an event stream.
+	@# ast.rs and render.rs used to be excluded too: Inline::Emph(Vec<Inline>)
+	@# recursed through Vec, and Lean's kernel rejects the resulting nested
+	@# inductive ("non valid occurrence of the datatypes being declared"). The
+	@# Ast is a flat event stream now, nothing in it recurses, and both modules
+	@# extract.
 	@cd verified && "$(CHARON)" cargo --preset=aeneas \
-		--exclude 'crate::adapt::_' --exclude 'crate::markdown_to_html' \
-		--exclude 'crate::ast::_' --exclude 'crate::render::_' \
+		$(foreach e,$(EXTRACT_EXCLUDES),--exclude '$(e)') \
 		--dest-file target/llbc/leaners_render.llbc -- --lib
 	@# -loops-to-rec extracts loops as recursive functions rather than through
 	@# the `loop` combinator: that is the shape every documented Aeneas proof
@@ -120,6 +125,10 @@ extract: ## Re-extract the Lean model from the Rust via charon + aeneas
 	@"$(AENEAS)" -backend lean -loops-to-rec "$(LLBC)" -dest proofs/Extracted
 	@echo "extracted into proofs/Extracted. Review the diff: that is how you"
 	@echo "notice a Rust change that altered the model's meaning."
+
+.PHONY: extract-report
+extract-report: ## Which lines of verified/src the extracted model covers
+	@$(PY) extract-report $(foreach e,$(EXTRACT_EXCLUDES),--exclude $(e))
 
 .PHONY: proofs
 proofs: ## Build the Lean model and its proofs

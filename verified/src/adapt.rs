@@ -5,6 +5,11 @@
 //! Raw HTML events are dropped here. That is the design decision that keeps
 //! the renderer's security theorem true: no markup from the input can reach
 //! the `Ast`, so none can reach the output.
+//!
+//! The `Ast` is a flat event stream, so this module also owns its balance
+//! invariant: every open marker pushed below is followed by its matching close
+//! on the same path, unconditionally, which is the well-formedness hypothesis
+//! the tag-balance theorem is stated under.
 
 use crate::ast::{Block, Inline};
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
@@ -16,16 +21,17 @@ pub fn parse(src: &str) -> Vec<Block> {
     options.insert(Options::ENABLE_MATH);
     let events: Vec<Event> = Parser::new_ext(src, options).collect();
     let mut i = 0usize;
-    blocks(&events, &mut i, None)
+    let mut out = Vec::new();
+    blocks(&events, &mut i, None, &mut out);
+    out
 }
 
-fn blocks(ev: &[Event], i: &mut usize, stop: Option<TagEnd>) -> Vec<Block> {
-    let mut out = Vec::new();
+fn blocks(ev: &[Event], i: &mut usize, stop: Option<TagEnd>, out: &mut Vec<Block>) {
     while *i < ev.len() {
         if let Event::End(end) = &ev[*i] {
             if Some(*end) == stop {
                 *i += 1;
-                return out;
+                return;
             }
             // An end tag we are not waiting for: skip it.
             *i += 1;
@@ -36,9 +42,7 @@ fn blocks(ev: &[Event], i: &mut usize, stop: Option<TagEnd>) -> Vec<Block> {
         {
             let tag = tag.clone();
             *i += 1;
-            if let Some(block) = block_for(ev, i, tag) {
-                out.push(block);
-            }
+            push_block(ev, i, tag, out);
             continue;
         }
         if let Event::Rule = &ev[*i] {
@@ -59,7 +63,6 @@ fn blocks(ev: &[Event], i: &mut usize, stop: Option<TagEnd>) -> Vec<Block> {
             *i += 1; // nothing consumed: guarantee progress
         }
     }
-    out
 }
 
 fn is_inline_start(tag: &Tag) -> bool {
@@ -69,12 +72,12 @@ fn is_inline_start(tag: &Tag) -> bool {
     )
 }
 
-fn block_for(ev: &[Event], i: &mut usize, tag: Tag) -> Option<Block> {
+fn push_block(ev: &[Event], i: &mut usize, tag: Tag, out: &mut Vec<Block>) {
     match tag {
-        Tag::Paragraph => Some(Block::Paragraph(inlines(ev, i, TagEnd::Paragraph))),
+        Tag::Paragraph => out.push(Block::Paragraph(inlines(ev, i, TagEnd::Paragraph))),
         Tag::Heading { level, .. } => {
             let n = level as u8;
-            Some(Block::Heading(n, inlines(ev, i, TagEnd::Heading(level))))
+            out.push(Block::Heading(n, inlines(ev, i, TagEnd::Heading(level))));
         }
         Tag::CodeBlock(kind) => {
             let lang = match &kind {
@@ -95,12 +98,16 @@ fn block_for(ev: &[Event], i: &mut usize, tag: Tag) -> Option<Block> {
                     _ => *i += 1,
                 }
             }
-            Some(Block::Code(lang, text))
+            out.push(Block::Code(lang, text));
         }
-        Tag::BlockQuote(_) => Some(Block::Quote(blocks(ev, i, Some(TagEnd::BlockQuote(None))))),
+        Tag::BlockQuote(_) => {
+            out.push(Block::QuoteOpen);
+            blocks(ev, i, Some(TagEnd::BlockQuote(None)), out);
+            out.push(Block::QuoteClose);
+        }
         Tag::List(start) => {
             let ordered = start.is_some();
-            let mut items = Vec::new();
+            out.push(Block::ListOpen(ordered));
             while *i < ev.len() {
                 match &ev[*i] {
                     Event::End(TagEnd::List(_)) => {
@@ -109,12 +116,14 @@ fn block_for(ev: &[Event], i: &mut usize, tag: Tag) -> Option<Block> {
                     }
                     Event::Start(Tag::Item) => {
                         *i += 1;
-                        items.push(blocks(ev, i, Some(TagEnd::Item)));
+                        out.push(Block::ItemOpen);
+                        blocks(ev, i, Some(TagEnd::Item), out);
+                        out.push(Block::ItemClose);
                     }
                     _ => *i += 1,
                 }
             }
-            Some(Block::List(ordered, items))
+            out.push(Block::ListClose(ordered));
         }
         Tag::Table(_) => {
             let mut rows: Vec<Vec<Vec<Inline>>> = Vec::new();
@@ -135,32 +144,37 @@ fn block_for(ev: &[Event], i: &mut usize, tag: Tag) -> Option<Block> {
                     _ => *i += 1,
                 }
             }
-            Some(Block::Table(rows))
+            out.push(Block::Table(rows));
         }
         // Footnotes and anything else we do not model are skipped
         // wholesale rather than half-rendered.
-        _ => None,
+        _ => {}
     }
 }
 
 fn inlines(ev: &[Event], i: &mut usize, stop: TagEnd) -> Vec<Inline> {
     let mut out = Vec::new();
+    gather(ev, i, stop, &mut out);
+    out
+}
+
+/// Appends inline events until `stop`, consuming the stop tag.
+fn gather(ev: &[Event], i: &mut usize, stop: TagEnd, out: &mut Vec<Inline>) {
     while *i < ev.len() {
         if let Event::End(end) = &ev[*i] {
             if *end == stop {
                 *i += 1;
-                return out;
+                return;
             }
             *i += 1;
             continue;
         }
         // Event::Html and Event::InlineHtml are not inline events here, so
         // they fall through and are dropped.
-        if !push_inline(ev, i, &mut out) {
+        if !push_inline(ev, i, out) {
             *i += 1;
         }
     }
-    out
 }
 
 /// Consumes one inline event. Returns false, consuming nothing, if the event
@@ -201,23 +215,28 @@ fn push_inline(ev: &[Event], i: &mut usize, out: &mut Vec<Inline>) -> bool {
             let tag = tag.clone();
             *i += 1;
             match tag {
-                Tag::Emphasis => out.push(Inline::Emph(inlines(ev, i, TagEnd::Emphasis))),
-                Tag::Strong => out.push(Inline::Strong(inlines(ev, i, TagEnd::Strong))),
-                Tag::Strikethrough => {
-                    // Not modelled as its own node; keep the text.
-                    let body = inlines(ev, i, TagEnd::Strikethrough);
-                    let mut j = 0;
-                    while j < body.len() {
-                        out.push(clone_inline(&body[j]));
-                        j += 1;
-                    }
+                Tag::Emphasis => {
+                    out.push(Inline::EmphOpen);
+                    gather(ev, i, TagEnd::Emphasis, out);
+                    out.push(Inline::EmphClose);
                 }
-                Tag::Link { dest_url, .. } => out.push(Inline::Link(
-                    dest_url.as_bytes().to_vec(),
-                    inlines(ev, i, TagEnd::Link),
-                )),
+                Tag::Strong => {
+                    out.push(Inline::StrongOpen);
+                    gather(ev, i, TagEnd::Strong, out);
+                    out.push(Inline::StrongClose);
+                }
+                Tag::Strikethrough => {
+                    // Not modelled as its own markers; keep the body events.
+                    gather(ev, i, TagEnd::Strikethrough, out);
+                }
+                Tag::Link { dest_url, .. } => {
+                    out.push(Inline::LinkOpen(dest_url.as_bytes().to_vec()));
+                    gather(ev, i, TagEnd::Link, out);
+                    out.push(Inline::LinkClose);
+                }
                 Tag::Image { dest_url, .. } => {
-                    let alt = inlines(ev, i, TagEnd::Image);
+                    let mut alt = Vec::new();
+                    gather(ev, i, TagEnd::Image, &mut alt);
                     out.push(Inline::Image(dest_url.as_bytes().to_vec(), flatten(&alt)));
                 }
                 _ => {}
@@ -247,30 +266,22 @@ fn cells(ev: &[Event], i: &mut usize, stop: TagEnd) -> Vec<Vec<Inline>> {
     out
 }
 
-fn clone_inline(inline: &Inline) -> Inline {
-    match inline {
-        Inline::Text(t) => Inline::Text(t.clone()),
-        Inline::Code(t) => Inline::Code(t.clone()),
-        Inline::Math(d, t) => Inline::Math(*d, t.clone()),
-        Inline::Emph(b) => Inline::Emph(b.iter().map(clone_inline).collect()),
-        Inline::Strong(b) => Inline::Strong(b.iter().map(clone_inline).collect()),
-        Inline::Link(u, b) => Inline::Link(u.clone(), b.iter().map(clone_inline).collect()),
-        Inline::Image(u, a) => Inline::Image(u.clone(), a.clone()),
-        Inline::SoftBreak => Inline::SoftBreak,
-        Inline::HardBreak => Inline::HardBreak,
-    }
-}
-
+/// Plain text of an event run, for image alt text. Markers contribute nothing;
+/// the text between them is already flat in the stream.
 fn flatten(inlines: &[Inline]) -> Vec<u8> {
     let mut out = Vec::new();
     for inline in inlines {
         match inline {
             Inline::Text(t) | Inline::Code(t) => out.extend_from_slice(t),
             Inline::Math(_, t) => out.extend_from_slice(t),
-            Inline::Emph(b) | Inline::Strong(b) => out.extend_from_slice(&flatten(b)),
-            Inline::Link(_, b) => out.extend_from_slice(&flatten(b)),
             Inline::Image(_, a) => out.extend_from_slice(a),
             Inline::SoftBreak | Inline::HardBreak => out.push(b' '),
+            Inline::EmphOpen
+            | Inline::EmphClose
+            | Inline::StrongOpen
+            | Inline::StrongClose
+            | Inline::LinkOpen(_)
+            | Inline::LinkClose => {}
         }
     }
     out

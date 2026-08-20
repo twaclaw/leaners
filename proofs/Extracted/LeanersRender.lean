@@ -14,6 +14,44 @@ set_option maxRecDepth 2048
 
 namespace leaners_render
 
+/-- [leaners_render::ast::Inline]
+    Source: 'src/ast.rs', lines 20:0-37:1
+    Visibility: public -/
+@[discriminant isize]
+inductive ast.Inline where
+| Text : alloc.vec.Vec Std.U8 → ast.Inline
+| Code : alloc.vec.Vec Std.U8 → ast.Inline
+| Math : Bool → alloc.vec.Vec Std.U8 → ast.Inline
+| EmphOpen : ast.Inline
+| EmphClose : ast.Inline
+| StrongOpen : ast.Inline
+| StrongClose : ast.Inline
+| LinkOpen : alloc.vec.Vec Std.U8 → ast.Inline
+| LinkClose : ast.Inline
+| Image : alloc.vec.Vec Std.U8 → alloc.vec.Vec Std.U8 → ast.Inline
+| SoftBreak : ast.Inline
+| HardBreak : ast.Inline
+
+/-- [leaners_render::ast::Block]
+    Source: 'src/ast.rs', lines 39:0-60:1
+    Visibility: public -/
+@[discriminant isize]
+inductive ast.Block where
+| Paragraph : alloc.vec.Vec ast.Inline → ast.Block
+| Inlines : alloc.vec.Vec ast.Inline → ast.Block
+| Heading : Std.U8 → alloc.vec.Vec ast.Inline → ast.Block
+| Code : alloc.vec.Vec Std.U8 → alloc.vec.Vec Std.U8 → ast.Block
+| QuoteOpen : ast.Block
+| QuoteClose : ast.Block
+| ListOpen : Bool → ast.Block
+| ListClose : Bool → ast.Block
+| ItemOpen : ast.Block
+| ItemClose : ast.Block
+| Table :
+  alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec ast.Inline)) →
+  ast.Block
+| Rule : ast.Block
+
 /-- [leaners_render::escape::push_all]: loop 0:
     Source: 'src/escape.rs', lines 22:4-25:5
     Visibility: public -/
@@ -2625,6 +2663,177 @@ def highlight.highlight
       then highlight.highlight_lean text out
       else highlight.highlight_loop text out 0#usize
 
+/-- [leaners_render::slug::clone_bytes]: loop 0:
+    Source: 'src/slug.rs', lines 98:4-101:5
+    Visibility: public -/
+@[rust_loop]
+def slug.clone_bytes_loop
+  (v : alloc.vec.Vec Std.U8) (out : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 := alloc.vec.Vec.len v
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) v i
+    let out1 ← alloc.vec.Vec.push out i2
+    let i3 ← i + 1#usize
+    slug.clone_bytes_loop v out1 i3
+  else ok out
+partial_fixpoint
+
+/-- [leaners_render::slug::clone_bytes]:
+    Source: 'src/slug.rs', lines 95:0-103:1
+    Visibility: public -/
+@[reducible]
+def slug.clone_bytes
+  (v : alloc.vec.Vec Std.U8) : Result (alloc.vec.Vec Std.U8) := do
+  slug.clone_bytes_loop v (alloc.vec.Vec.new Std.U8) 0#usize
+
+/-- [leaners_render::slug::eq]: loop 0:
+    Source: 'src/slug.rs', lines 43:4-50:1 -/
+@[rust_loop]
+def slug.eq_loop
+  (a : alloc.vec.Vec Std.U8) (b : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len a
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) a i
+    let i3 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) b i
+    if i2 != i3
+    then ok false
+    else let i4 ← i + 1#usize
+         slug.eq_loop a b i4
+  else ok true
+partial_fixpoint
+
+/-- [leaners_render::slug::eq]:
+    Source: 'src/slug.rs', lines 38:0-50:1 -/
+def slug.eq
+  (a : alloc.vec.Vec Std.U8) (b : alloc.vec.Vec Std.U8) : Result Bool := do
+  let i := alloc.vec.Vec.len a
+  let i1 := alloc.vec.Vec.len b
+  if i != i1
+  then ok false
+  else slug.eq_loop a b 0#usize
+
+/-- [leaners_render::slug::contains]: loop 0:
+    Source: 'src/slug.rs', lines 86:4-93:1 -/
+@[rust_loop]
+def slug.contains_loop
+  (haystack : alloc.vec.Vec (alloc.vec.Vec Std.U8))
+  (needle : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len haystack
+  if i < i1
+  then
+    let v ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+        Std.U8)) haystack i
+    let b ← slug.eq v needle
+    if b
+    then ok true
+    else let i2 ← i + 1#usize
+         slug.contains_loop haystack needle i2
+  else ok false
+partial_fixpoint
+
+/-- [leaners_render::slug::contains]:
+    Source: 'src/slug.rs', lines 84:0-93:1 -/
+@[reducible]
+def slug.contains
+  (haystack : alloc.vec.Vec (alloc.vec.Vec Std.U8))
+  (needle : alloc.vec.Vec Std.U8) :
+  Result Bool
+  := do
+  slug.contains_loop haystack needle 0#usize
+
+/-- [leaners_render::slug::push_usize]: loop 0:
+    Source: 'src/slug.rs', lines 58:4-61:5 -/
+@[rust_loop]
+def slug.push_usize_loop0
+  (n : Std.Usize) (digits : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  if n > 0#usize
+  then
+    let i ← n % 10#usize
+    let i1 ← lift (UScalar.cast .U8 i)
+    let i2 ← 48#u8 + i1
+    let digits1 ← alloc.vec.Vec.push digits i2
+    let n1 ← n / 10#usize
+    slug.push_usize_loop0 n1 digits1
+  else ok digits
+partial_fixpoint
+
+/-- [leaners_render::slug::push_usize]: loop 1:
+    Source: 'src/slug.rs', lines 63:4-66:5 -/
+@[rust_loop]
+def slug.push_usize_loop1
+  (out : alloc.vec.Vec Std.U8) (digits : alloc.vec.Vec Std.U8) (i : Std.Usize)
+  :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  if i > 0#usize
+  then
+    let i1 ← i - 1#usize
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) digits
+        i1
+    let out1 ← alloc.vec.Vec.push out i2
+    slug.push_usize_loop1 out1 digits i1
+  else ok out
+partial_fixpoint
+
+/-- [leaners_render::slug::push_usize]:
+    Source: 'src/slug.rs', lines 52:0-67:1 -/
+def slug.push_usize
+  (out : alloc.vec.Vec Std.U8) (n : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  if n = 0#usize
+  then alloc.vec.Vec.push out 48#u8
+  else
+    let digits ← slug.push_usize_loop0 n (alloc.vec.Vec.new Std.U8)
+    let i := alloc.vec.Vec.len digits
+    slug.push_usize_loop1 out digits i
+
+/-- [leaners_render::slug::assign]: loop 0:
+    Source: 'src/slug.rs', lines 75:4-80:5
+    Visibility: public -/
+@[rust_loop]
+def slug.assign_loop
+  (taken : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (base : alloc.vec.Vec Std.U8)
+  (candidate : alloc.vec.Vec Std.U8) (n : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let b ← slug.contains taken candidate
+  if b
+  then
+    let n1 ← n + 1#usize
+    let candidate1 ← slug.clone_bytes base
+    let candidate2 ← alloc.vec.Vec.push candidate1 45#u8
+    let candidate3 ← slug.push_usize candidate2 n1
+    slug.assign_loop taken base candidate3 n1
+  else ok candidate
+partial_fixpoint
+
+/-- [leaners_render::slug::assign]:
+    Source: 'src/slug.rs', lines 72:0-82:1
+    Visibility: public -/
+def slug.assign
+  (taken : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (base : alloc.vec.Vec Std.U8)
+  :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let candidate ← slug.clone_bytes base
+  slug.assign_loop taken base candidate 1#usize
+
 /-- [leaners_render::slug::slugify]: loop 0:
     Source: 'src/slug.rs', lines 22:4-34:5
     Visibility: public -/
@@ -2706,93 +2915,11 @@ def slug.slugify
   (input : alloc.vec.Vec Std.U8) : Result (alloc.vec.Vec Std.U8) := do
   slug.slugify_loop input (alloc.vec.Vec.new Std.U8) 0#usize false
 
-/-- [leaners_render::slug::eq]: loop 0:
-    Source: 'src/slug.rs', lines 43:4-50:1 -/
+/-- [leaners_render::render::push_bytes]: loop 0:
+    Source: 'src/render.rs', lines 244:4-247:5 -/
 @[rust_loop]
-def slug.eq_loop
-  (a : alloc.vec.Vec Std.U8) (b : alloc.vec.Vec Std.U8) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len a
-  if i < i1
-  then
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) a i
-    let i3 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) b i
-    if i2 != i3
-    then ok false
-    else let i4 ← i + 1#usize
-         slug.eq_loop a b i4
-  else ok true
-partial_fixpoint
-
-/-- [leaners_render::slug::eq]:
-    Source: 'src/slug.rs', lines 38:0-50:1 -/
-def slug.eq
-  (a : alloc.vec.Vec Std.U8) (b : alloc.vec.Vec Std.U8) : Result Bool := do
-  let i := alloc.vec.Vec.len a
-  let i1 := alloc.vec.Vec.len b
-  if i != i1
-  then ok false
-  else slug.eq_loop a b 0#usize
-
-/-- [leaners_render::slug::push_usize]: loop 0:
-    Source: 'src/slug.rs', lines 58:4-61:5 -/
-@[rust_loop]
-def slug.push_usize_loop0
-  (n : Std.Usize) (digits : alloc.vec.Vec Std.U8) :
-  Result (alloc.vec.Vec Std.U8)
-  := do
-  if n > 0#usize
-  then
-    let i ← n % 10#usize
-    let i1 ← lift (UScalar.cast .U8 i)
-    let i2 ← 48#u8 + i1
-    let digits1 ← alloc.vec.Vec.push digits i2
-    let n1 ← n / 10#usize
-    slug.push_usize_loop0 n1 digits1
-  else ok digits
-partial_fixpoint
-
-/-- [leaners_render::slug::push_usize]: loop 1:
-    Source: 'src/slug.rs', lines 63:4-66:5 -/
-@[rust_loop]
-def slug.push_usize_loop1
-  (out : alloc.vec.Vec Std.U8) (digits : alloc.vec.Vec Std.U8) (i : Std.Usize)
-  :
-  Result (alloc.vec.Vec Std.U8)
-  := do
-  if i > 0#usize
-  then
-    let i1 ← i - 1#usize
-    let i2 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) digits
-        i1
-    let out1 ← alloc.vec.Vec.push out i2
-    slug.push_usize_loop1 out1 digits i1
-  else ok out
-partial_fixpoint
-
-/-- [leaners_render::slug::push_usize]:
-    Source: 'src/slug.rs', lines 52:0-67:1 -/
-def slug.push_usize
-  (out : alloc.vec.Vec Std.U8) (n : Std.Usize) :
-  Result (alloc.vec.Vec Std.U8)
-  := do
-  if n = 0#usize
-  then alloc.vec.Vec.push out 48#u8
-  else
-    let digits ← slug.push_usize_loop0 n (alloc.vec.Vec.new Std.U8)
-    let i := alloc.vec.Vec.len digits
-    slug.push_usize_loop1 out digits i
-
-/-- [leaners_render::slug::clone_bytes]: loop 0:
-    Source: 'src/slug.rs', lines 98:4-101:5
-    Visibility: public -/
-@[rust_loop]
-def slug.clone_bytes_loop
-  (v : alloc.vec.Vec Std.U8) (out : alloc.vec.Vec Std.U8) (i : Std.Usize) :
+def render.push_bytes_loop
+  (out : alloc.vec.Vec Std.U8) (v : alloc.vec.Vec Std.U8) (i : Std.Usize) :
   Result (alloc.vec.Vec Std.U8)
   := do
   let i1 := alloc.vec.Vec.len v
@@ -2802,79 +2929,524 @@ def slug.clone_bytes_loop
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice Std.U8) v i
     let out1 ← alloc.vec.Vec.push out i2
     let i3 ← i + 1#usize
-    slug.clone_bytes_loop v out1 i3
+    render.push_bytes_loop out1 v i3
   else ok out
 partial_fixpoint
 
-/-- [leaners_render::slug::clone_bytes]:
-    Source: 'src/slug.rs', lines 95:0-103:1
-    Visibility: public -/
+/-- [leaners_render::render::push_bytes]:
+    Source: 'src/render.rs', lines 242:0-248:1 -/
 @[reducible]
-def slug.clone_bytes
-  (v : alloc.vec.Vec Std.U8) : Result (alloc.vec.Vec Std.U8) := do
-  slug.clone_bytes_loop v (alloc.vec.Vec.new Std.U8) 0#usize
-
-/-- [leaners_render::slug::contains]: loop 0:
-    Source: 'src/slug.rs', lines 86:4-93:1 -/
-@[rust_loop]
-def slug.contains_loop
-  (haystack : alloc.vec.Vec (alloc.vec.Vec Std.U8))
-  (needle : alloc.vec.Vec Std.U8) (i : Std.Usize) :
-  Result Bool
+def render.push_bytes
+  (out : alloc.vec.Vec Std.U8) (v : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
   := do
-  let i1 := alloc.vec.Vec.len haystack
+  render.push_bytes_loop out v 0#usize
+
+/-- [leaners_render::render::inline_text]: loop 0:
+    Source: 'src/render.rs', lines 222:4-238:5 -/
+@[rust_loop]
+def render.inline_text_loop
+  (inlines : alloc.vec.Vec ast.Inline) (out : alloc.vec.Vec Std.U8)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 := alloc.vec.Vec.len inlines
   if i < i1
   then
-    let v ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
-        Std.U8)) haystack i
-    let b ← slug.eq v needle
-    if b
-    then ok true
-    else let i2 ← i + 1#usize
-         slug.contains_loop haystack needle i2
-  else ok false
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ast.Inline)
+        inlines i
+    let out1 ←
+      match i2 with
+      | ast.Inline.Text t => render.push_bytes out t
+      | ast.Inline.Code t => render.push_bytes out t
+      | ast.Inline.Math _ t => render.push_bytes out t
+      | ast.Inline.EmphOpen => ok out
+      | ast.Inline.EmphClose => ok out
+      | ast.Inline.StrongOpen => ok out
+      | ast.Inline.StrongClose => ok out
+      | ast.Inline.LinkOpen _ => ok out
+      | ast.Inline.LinkClose => ok out
+      | ast.Inline.Image _ alt => render.push_bytes out alt
+      | ast.Inline.SoftBreak => alloc.vec.Vec.push out 32#u8
+      | ast.Inline.HardBreak => alloc.vec.Vec.push out 32#u8
+    let i3 ← i + 1#usize
+    render.inline_text_loop inlines out1 i3
+  else ok out
 partial_fixpoint
 
-/-- [leaners_render::slug::contains]:
-    Source: 'src/slug.rs', lines 84:0-93:1 -/
+/-- [leaners_render::render::inline_text]:
+    Source: 'src/render.rs', lines 219:0-240:1 -/
 @[reducible]
-def slug.contains
-  (haystack : alloc.vec.Vec (alloc.vec.Vec Std.U8))
-  (needle : alloc.vec.Vec Std.U8) :
-  Result Bool
-  := do
-  slug.contains_loop haystack needle 0#usize
+def render.inline_text
+  (inlines : alloc.vec.Vec ast.Inline) : Result (alloc.vec.Vec Std.U8) := do
+  render.inline_text_loop inlines (alloc.vec.Vec.new Std.U8) 0#usize
 
-/-- [leaners_render::slug::assign]: loop 0:
-    Source: 'src/slug.rs', lines 75:4-80:5
+/-- [leaners_render::render::render_inline]:
+    Source: 'src/render.rs', lines 159:0-214:1 -/
+def render.render_inline
+  (inline : ast.Inline) (out : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  match inline with
+  | ast.Inline.Text t => escape.escape t out
+  | ast.Inline.Code t =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 6#usize [ 60#u8, 99#u8, 111#u8, 100#u8, 101#u8, 62#u8 ]))
+    let out1 ← escape.push_all out s
+    let out2 ← escape.escape t out1
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 7#usize [
+          60#u8, 47#u8, 99#u8, 111#u8, 100#u8, 101#u8, 62#u8
+          ]))
+    escape.push_all out2 s1
+  | ast.Inline.Math display t =>
+    let out1 ←
+      if display
+      then
+        do
+        let s ←
+          lift (Array.to_slice
+            (Array.make 32#usize [
+              60#u8, 115#u8, 112#u8, 97#u8, 110#u8, 32#u8, 99#u8, 108#u8,
+              97#u8, 115#u8, 115#u8, 61#u8, 34#u8, 109#u8, 97#u8, 116#u8,
+              104#u8, 32#u8, 109#u8, 97#u8, 116#u8, 104#u8, 45#u8, 100#u8,
+              105#u8, 115#u8, 112#u8, 108#u8, 97#u8, 121#u8, 34#u8, 62#u8
+              ]))
+        escape.push_all out s
+      else
+        do
+        let s ←
+          lift (Array.to_slice
+            (Array.make 19#usize [
+              60#u8, 115#u8, 112#u8, 97#u8, 110#u8, 32#u8, 99#u8, 108#u8,
+              97#u8, 115#u8, 115#u8, 61#u8, 34#u8, 109#u8, 97#u8, 116#u8,
+              104#u8, 34#u8, 62#u8
+              ]))
+        escape.push_all out s
+    let out2 ← escape.escape t out1
+    let s ←
+      lift (Array.to_slice
+        (Array.make 7#usize [
+          60#u8, 47#u8, 115#u8, 112#u8, 97#u8, 110#u8, 62#u8
+          ]))
+    escape.push_all out2 s
+  | ast.Inline.EmphOpen =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 4#usize [ 60#u8, 101#u8, 109#u8, 62#u8 ]))
+    escape.push_all out s
+  | ast.Inline.EmphClose =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 5#usize [ 60#u8, 47#u8, 101#u8, 109#u8, 62#u8 ]))
+    escape.push_all out s
+  | ast.Inline.StrongOpen =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 8#usize [
+          60#u8, 115#u8, 116#u8, 114#u8, 111#u8, 110#u8, 103#u8, 62#u8
+          ]))
+    escape.push_all out s
+  | ast.Inline.StrongClose =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 9#usize [
+          60#u8, 47#u8, 115#u8, 116#u8, 114#u8, 111#u8, 110#u8, 103#u8, 62#u8
+          ]))
+    escape.push_all out s
+  | ast.Inline.LinkOpen url =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 9#usize [
+          60#u8, 97#u8, 32#u8, 104#u8, 114#u8, 101#u8, 102#u8, 61#u8, 34#u8
+          ]))
+    let out1 ← escape.push_all out s
+    let b ← escape.is_safe_url url
+    let out2 ← if b
+                 then escape.escape url out1
+                 else ok out1
+    let s1 ← lift (Array.to_slice (Array.make 2#usize [ 34#u8, 62#u8 ]))
+    escape.push_all out2 s1
+  | ast.Inline.LinkClose =>
+    let s ←
+      lift (Array.to_slice (Array.make 4#usize [ 60#u8, 47#u8, 97#u8, 62#u8 ]))
+    escape.push_all out s
+  | ast.Inline.Image url alt =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 10#usize [
+          60#u8, 105#u8, 109#u8, 103#u8, 32#u8, 115#u8, 114#u8, 99#u8, 61#u8,
+          34#u8
+          ]))
+    let out1 ← escape.push_all out s
+    let b ← escape.is_safe_url url
+    let out2 ← if b
+                 then escape.escape url out1
+                 else ok out1
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 7#usize [
+          34#u8, 32#u8, 97#u8, 108#u8, 116#u8, 61#u8, 34#u8
+          ]))
+    let out3 ← escape.push_all out2 s1
+    let out4 ← escape.escape alt out3
+    let s2 ← lift (Array.to_slice (Array.make 2#usize [ 34#u8, 62#u8 ]))
+    escape.push_all out4 s2
+  | ast.Inline.SoftBreak => alloc.vec.Vec.push out 10#u8
+  | ast.Inline.HardBreak =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 5#usize [ 60#u8, 98#u8, 114#u8, 62#u8, 10#u8 ]))
+    escape.push_all out s
+
+/-- [leaners_render::render::render_inlines]: loop 0:
+    Source: 'src/render.rs', lines 153:4-156:5 -/
+@[rust_loop]
+def render.render_inlines_loop
+  (inlines : alloc.vec.Vec ast.Inline) (out : alloc.vec.Vec Std.U8)
+  (i : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i1 := alloc.vec.Vec.len inlines
+  if i < i1
+  then
+    let i2 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ast.Inline)
+        inlines i
+    let out1 ← render.render_inline i2 out
+    let i3 ← i + 1#usize
+    render.render_inlines_loop inlines out1 i3
+  else ok out
+partial_fixpoint
+
+/-- [leaners_render::render::render_inlines]:
+    Source: 'src/render.rs', lines 151:0-157:1 -/
+@[reducible]
+def render.render_inlines
+  (inlines : alloc.vec.Vec ast.Inline) (out : alloc.vec.Vec Std.U8) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  render.render_inlines_loop inlines out 0#usize
+
+/-- [leaners_render::render::render_block]: loop 1:
+    Source: 'src/render.rs', lines 122:16-133:17 -/
+@[rust_loop]
+def render.render_block_loop0_loop0
+  (rows : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec ast.Inline)))
+  (out : alloc.vec.Vec Std.U8) (r : Std.Usize) (c : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let v ←
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice (alloc.vec.Vec
+      (alloc.vec.Vec ast.Inline))) rows r
+  let i := alloc.vec.Vec.len v
+  if c < i
+  then
+    let out1 ←
+      if r = 0#usize
+      then
+        do
+        let s ←
+          lift (Array.to_slice
+            (Array.make 4#usize [ 60#u8, 116#u8, 104#u8, 62#u8 ]))
+        let out2 ← escape.push_all out s
+        let v1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec ast.Inline)) v c
+        let out3 ← render.render_inlines v1 out2
+        let s1 ←
+          lift (Array.to_slice
+            (Array.make 5#usize [ 60#u8, 47#u8, 116#u8, 104#u8, 62#u8 ]))
+        escape.push_all out3 s1
+      else
+        do
+        let s ←
+          lift (Array.to_slice
+            (Array.make 4#usize [ 60#u8, 116#u8, 100#u8, 62#u8 ]))
+        let out2 ← escape.push_all out s
+        let v1 ←
+          alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+            (alloc.vec.Vec ast.Inline)) v c
+        let out3 ← render.render_inlines v1 out2
+        let s1 ←
+          lift (Array.to_slice
+            (Array.make 5#usize [ 60#u8, 47#u8, 116#u8, 100#u8, 62#u8 ]))
+        escape.push_all out3 s1
+    let c1 ← c + 1#usize
+    render.render_block_loop0_loop0 rows out1 r c1
+  else ok out
+partial_fixpoint
+
+/-- [leaners_render::render::render_block]: loop 0:
+    Source: 'src/render.rs', lines 114:12-139:13 -/
+@[rust_loop]
+def render.render_block_loop0
+  (rows : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec ast.Inline)))
+  (out : alloc.vec.Vec Std.U8) (r : Std.Usize) :
+  Result (alloc.vec.Vec Std.U8)
+  := do
+  let i := alloc.vec.Vec.len rows
+  if r < i
+  then
+    let out1 ←
+      if r = 0#usize
+      then
+        do
+        let s ←
+          lift (Array.to_slice
+            (Array.make 8#usize [
+              60#u8, 116#u8, 104#u8, 101#u8, 97#u8, 100#u8, 62#u8, 10#u8
+              ]))
+        escape.push_all out s
+      else
+        if r = 1#usize
+        then
+          do
+          let s ←
+            lift (Array.to_slice
+              (Array.make 8#usize [
+                60#u8, 116#u8, 98#u8, 111#u8, 100#u8, 121#u8, 62#u8, 10#u8
+                ]))
+          escape.push_all out s
+        else ok out
+    let s ←
+      lift (Array.to_slice
+        (Array.make 4#usize [ 60#u8, 116#u8, 114#u8, 62#u8 ]))
+    let out2 ← escape.push_all out1 s
+    let out3 ← render.render_block_loop0_loop0 rows out2 r 0#usize
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 6#usize [ 60#u8, 47#u8, 116#u8, 114#u8, 62#u8, 10#u8 ]))
+    let out4 ← escape.push_all out3 s1
+    let out5 ←
+      if r = 0#usize
+      then
+        do
+        let s2 ←
+          lift (Array.to_slice
+            (Array.make 9#usize [
+              60#u8, 47#u8, 116#u8, 104#u8, 101#u8, 97#u8, 100#u8, 62#u8, 10#u8
+              ]))
+        escape.push_all out4 s2
+      else ok out4
+    let r1 ← r + 1#usize
+    render.render_block_loop0 rows out5 r1
+  else ok out
+partial_fixpoint
+
+/-- [leaners_render::render::render_block]:
+    Source: 'src/render.rs', lines 35:0-149:1 -/
+def render.render_block
+  (block : ast.Block) (taken : alloc.vec.Vec (alloc.vec.Vec Std.U8))
+  (out : alloc.vec.Vec Std.U8) :
+  Result ((alloc.vec.Vec (alloc.vec.Vec Std.U8)) × (alloc.vec.Vec Std.U8))
+  := do
+  match block with
+  | ast.Block.Paragraph body =>
+    let s ←
+      lift (Array.to_slice (Array.make 3#usize [ 60#u8, 112#u8, 62#u8 ]))
+    let out1 ← escape.push_all out s
+    let out2 ← render.render_inlines body out1
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 5#usize [ 60#u8, 47#u8, 112#u8, 62#u8, 10#u8 ]))
+    let out3 ← escape.push_all out2 s1
+    ok (taken, out3)
+  | ast.Block.Inlines body =>
+    let out1 ← render.render_inlines body out
+    ok (taken, out1)
+  | ast.Block.Heading level body =>
+    let n ←
+      if level < 1#u8
+      then ok 1#u8
+      else if level > 6#u8
+           then ok 6#u8
+           else ok level
+    let text ← render.inline_text body
+    let v ← slug.slugify text
+    let id ← slug.assign taken v
+    let v1 ← slug.clone_bytes id
+    let taken1 ← alloc.vec.Vec.push taken v1
+    let s ← lift (Array.to_slice (Array.make 2#usize [ 60#u8, 104#u8 ]))
+    let out1 ← escape.push_all out s
+    let i ← 48#u8 + n
+    let out2 ← alloc.vec.Vec.push out1 i
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 5#usize [ 32#u8, 105#u8, 100#u8, 61#u8, 34#u8 ]))
+    let out3 ← escape.push_all out2 s1
+    let out4 ← escape.escape id out3
+    let s2 ← lift (Array.to_slice (Array.make 2#usize [ 34#u8, 62#u8 ]))
+    let out5 ← escape.push_all out4 s2
+    let out6 ← render.render_inlines body out5
+    let s3 ←
+      lift (Array.to_slice (Array.make 3#usize [ 60#u8, 47#u8, 104#u8 ]))
+    let out7 ← escape.push_all out6 s3
+    let out8 ← alloc.vec.Vec.push out7 i
+    let s4 ← lift (Array.to_slice (Array.make 2#usize [ 62#u8, 10#u8 ]))
+    let out9 ← escape.push_all out8 s4
+    ok (taken1, out9)
+  | ast.Block.Code lang text =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 10#usize [
+          60#u8, 112#u8, 114#u8, 101#u8, 62#u8, 60#u8, 99#u8, 111#u8, 100#u8,
+          101#u8
+          ]))
+    let out1 ← escape.push_all out s
+    let i := alloc.vec.Vec.len lang
+    let out2 ←
+      if i > 0#usize
+      then
+        do
+        let s1 ←
+          lift (Array.to_slice
+            (Array.make 17#usize [
+              32#u8, 99#u8, 108#u8, 97#u8, 115#u8, 115#u8, 61#u8, 34#u8,
+              108#u8, 97#u8, 110#u8, 103#u8, 117#u8, 97#u8, 103#u8, 101#u8,
+              45#u8
+              ]))
+        let out3 ← escape.push_all out1 s1
+        let v ← slug.slugify lang
+        let out4 ← escape.escape v out3
+        alloc.vec.Vec.push out4 34#u8
+      else ok out1
+    let out3 ← alloc.vec.Vec.push out2 62#u8
+    let i1 ← highlight.lang_of lang
+    let out4 ← highlight.highlight i1 text out3
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 14#usize [
+          60#u8, 47#u8, 99#u8, 111#u8, 100#u8, 101#u8, 62#u8, 60#u8, 47#u8,
+          112#u8, 114#u8, 101#u8, 62#u8, 10#u8
+          ]))
+    let out5 ← escape.push_all out4 s1
+    ok (taken, out5)
+  | ast.Block.QuoteOpen =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 13#usize [
+          60#u8, 98#u8, 108#u8, 111#u8, 99#u8, 107#u8, 113#u8, 117#u8, 111#u8,
+          116#u8, 101#u8, 62#u8, 10#u8
+          ]))
+    let out1 ← escape.push_all out s
+    ok (taken, out1)
+  | ast.Block.QuoteClose =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 14#usize [
+          60#u8, 47#u8, 98#u8, 108#u8, 111#u8, 99#u8, 107#u8, 113#u8, 117#u8,
+          111#u8, 116#u8, 101#u8, 62#u8, 10#u8
+          ]))
+    let out1 ← escape.push_all out s
+    ok (taken, out1)
+  | ast.Block.ListOpen ordered =>
+    if ordered
+    then
+      let s ←
+        lift (Array.to_slice
+          (Array.make 5#usize [ 60#u8, 111#u8, 108#u8, 62#u8, 10#u8 ]))
+      let out1 ← escape.push_all out s
+      ok (taken, out1)
+    else
+      let s ←
+        lift (Array.to_slice
+          (Array.make 5#usize [ 60#u8, 117#u8, 108#u8, 62#u8, 10#u8 ]))
+      let out1 ← escape.push_all out s
+      ok (taken, out1)
+  | ast.Block.ListClose ordered =>
+    if ordered
+    then
+      let s ←
+        lift (Array.to_slice
+          (Array.make 6#usize [ 60#u8, 47#u8, 111#u8, 108#u8, 62#u8, 10#u8 ]))
+      let out1 ← escape.push_all out s
+      ok (taken, out1)
+    else
+      let s ←
+        lift (Array.to_slice
+          (Array.make 6#usize [ 60#u8, 47#u8, 117#u8, 108#u8, 62#u8, 10#u8 ]))
+      let out1 ← escape.push_all out s
+      ok (taken, out1)
+  | ast.Block.ItemOpen =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 4#usize [ 60#u8, 108#u8, 105#u8, 62#u8 ]))
+    let out1 ← escape.push_all out s
+    ok (taken, out1)
+  | ast.Block.ItemClose =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 6#usize [ 60#u8, 47#u8, 108#u8, 105#u8, 62#u8, 10#u8 ]))
+    let out1 ← escape.push_all out s
+    ok (taken, out1)
+  | ast.Block.Table rows =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 8#usize [
+          60#u8, 116#u8, 97#u8, 98#u8, 108#u8, 101#u8, 62#u8, 10#u8
+          ]))
+    let out1 ← escape.push_all out s
+    let out2 ← render.render_block_loop0 rows out1 0#usize
+    let i := alloc.vec.Vec.len rows
+    let out3 ←
+      if i > 1#usize
+      then
+        do
+        let s1 ←
+          lift (Array.to_slice
+            (Array.make 9#usize [
+              60#u8, 47#u8, 116#u8, 98#u8, 111#u8, 100#u8, 121#u8, 62#u8, 10#u8
+              ]))
+        escape.push_all out2 s1
+      else ok out2
+    let s1 ←
+      lift (Array.to_slice
+        (Array.make 9#usize [
+          60#u8, 47#u8, 116#u8, 97#u8, 98#u8, 108#u8, 101#u8, 62#u8, 10#u8
+          ]))
+    let out4 ← escape.push_all out3 s1
+    ok (taken, out4)
+  | ast.Block.Rule =>
+    let s ←
+      lift (Array.to_slice
+        (Array.make 5#usize [ 60#u8, 104#u8, 114#u8, 62#u8, 10#u8 ]))
+    let out1 ← escape.push_all out s
+    ok (taken, out1)
+
+/-- [leaners_render::render::render]: loop 0:
+    Source: 'src/render.rs', lines 29:4-32:5
     Visibility: public -/
 @[rust_loop]
-def slug.assign_loop
-  (taken : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (base : alloc.vec.Vec Std.U8)
-  (candidate : alloc.vec.Vec Std.U8) (n : Std.Usize) :
+def render.render_loop
+  (blocks : alloc.vec.Vec ast.Block) (out : alloc.vec.Vec Std.U8)
+  (taken : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (i : Std.Usize) :
   Result (alloc.vec.Vec Std.U8)
   := do
-  let b ← slug.contains taken candidate
-  if b
+  let i1 := alloc.vec.Vec.len blocks
+  if i < i1
   then
-    let n1 ← n + 1#usize
-    let candidate1 ← slug.clone_bytes base
-    let candidate2 ← alloc.vec.Vec.push candidate1 45#u8
-    let candidate3 ← slug.push_usize candidate2 n1
-    slug.assign_loop taken base candidate3 n1
-  else ok candidate
+    let b ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice ast.Block)
+        blocks i
+    let (taken1, out1) ← render.render_block b taken out
+    let i2 ← i + 1#usize
+    render.render_loop blocks out1 taken1 i2
+  else ok out
 partial_fixpoint
 
-/-- [leaners_render::slug::assign]:
-    Source: 'src/slug.rs', lines 72:0-82:1
+/-- [leaners_render::render::render]:
+    Source: 'src/render.rs', lines 26:0-33:1
     Visibility: public -/
-def slug.assign
-  (taken : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (base : alloc.vec.Vec Std.U8)
-  :
+@[reducible]
+def render.render
+  (blocks : alloc.vec.Vec ast.Block) (out : alloc.vec.Vec Std.U8) :
   Result (alloc.vec.Vec Std.U8)
   := do
-  let candidate ← slug.clone_bytes base
-  slug.assign_loop taken base candidate 1#usize
+  render.render_loop blocks out (alloc.vec.Vec.new (alloc.vec.Vec Std.U8))
+    0#usize
 
 end leaners_render
