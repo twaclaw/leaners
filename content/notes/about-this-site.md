@@ -40,16 +40,22 @@ Verifying a Markdown parser would be a more extensive project, since `CommonMark
 several hundred special cases. So the parser is off the shelf and unverified,
 **and only the `Ast -> HTML` half is verified.**
 
-This compromise is actually stronger than verifying the parser,
-because the theorem quantifies over every `Ast`:
+This compromise is designed to be stronger than verifying the parser: the
+theorem to aim at quantifies over every `Ast`, so however buggy the parser is,
+all it can do is hand `render` some `Ast`.
 
 ```lean
+-- The target of the ladder. Not proved yet.
 theorem render_safe : forall (a : Ast), no_input_derived_markup (render a)
 ```
 
-However buggy the parser is, all it can do is hand `render` some `Ast`, and the
-property holds for all of them. The safety guarantee is unconditional across a
-component nobody verified.
+A proof over all `Ast` values would make the guarantee unconditional across a
+component nobody verified. That is the design the ladder is built toward, but
+this particular theorem is not discharged yet. What is proved today is the layer
+it rests on: `escape` emits no `<`, and `render` routes every input-derived byte
+through `escape`. Lifting the first fact across `render` is the step that
+remains, and until it is written the render-level guarantee is carried by the
+tests in `verified/tests/`, not by a proof.
 
 ### Austere Rust
 
@@ -99,16 +105,40 @@ has no dependent types at all.
 
 The properties, in increasing order of difficulty:
 
-| # | Function | Property |
-|---|---|---|
-| 0 | `escape_byte` | output contains no `<`, `>`, `&`, `"` except as entities |
-| 1 | `escape` | `unescape (escape s) = s`, the round trip |
-| 2 | `slugify` | charset invariant, and `slugify (slugify s) = slugify s` |
-| 3 | `assign_slugs` | anchor ids in a document contain no duplicates |
-| 4 | `sanitize_url` | scheme is one of `http`, `https`, `mailto`, relative |
-| 5 | `render` | every tag opened is closed, correctly nested |
-| 6 | `render` | every `<` in the output was emitted by `render`, never derived from input |
+| # | Function | Property | Status |
+|---|---|---|---|
+| 0 | `escape_byte` | output contains no `<`, `>`, `&`, `"` except as entities | proved |
+| 1 | `escape` | `unescape (escape s) = s`, the round trip | proved |
+| 2 | `slugify` | charset invariant, and `slugify (slugify s) = slugify s` | charset proved, idempotence tests only |
+| 3 | `assign_slugs` | anchor ids in a document contain no duplicates | tests only |
+| 4 | `sanitize_url` | scheme is one of `http`, `https`, `mailto`, relative | proved |
+| 5 | `render` | every tag opened is closed, correctly nested | tests only |
+| 6 | `render` | every `<` in the output was emitted by `render`, never derived from input | tests only |
 
 Steps 4 and 6 are the two that are not decoration. Every document here becomes
 DOM in somebody's browser, so an escaping bug would be a live XSS vector on a
 site about correctness.
+
+## Remaining work
+
+Four of the seven rungs are machine-checked against the extracted model. The
+others are covered by `verified/tests/` while their proofs are written, in
+roughly this order of weight:
+
+- **Step 6, no input-derived markup in `render`.** The headline property, and
+  the reason the unverified parser is meant to be harmless. The extracted model
+  of `render` now exists; what remains is to lift the `escape` no-`<` lemma up
+  through `render_inline`, `render_inlines` and `render_block`, where every case
+  either emits a fixed tag literal or sends input bytes through `escape`.
+- **Step 5, tag balance.** Every open tag closed and correctly nested. On the
+  flat event stream this holds for balanced streams, so the statement carries a
+  well-formedness hypothesis that `adapt` discharges by construction.
+- **Step 2, `slugify` idempotence.** The charset half is proved; that
+  `slugify (slugify s) = slugify s` is checked in `verified/tests/props.rs`.
+- **Step 3, anchor id uniqueness.** That `assign_slugs` never repeats an id in a
+  document is a property test today, not yet a theorem.
+
+Stated plainly: the architecture is built so the top-level theorem is provable
+over every `Ast`, but that theorem is still a target, and the strongest safety
+claim on this page currently rests on tests for the render layer rather than on
+a proof.
